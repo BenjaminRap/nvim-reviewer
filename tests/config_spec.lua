@@ -1,0 +1,38 @@
+local config = require("reviewer.config")
+
+describe("config", function()
+  it("keeps the defaults of keys that are not set", function()
+    config.setup({ keymaps = { browser = { parent = "h" } } })
+    expect(config.options.keymaps.browser.parent).equal("h")
+    expect(config.options.keymaps.browser.open).equal("<CR>")
+  end)
+
+  it("replaces lists instead of merging them", function()
+    config.setup({ keymaps = { quiz = { refs = { "x" } } }, generated = { "^gen/" } })
+    expect(config.options.keymaps.quiz.refs).equal({ "x" })
+    expect(config.options.generated).equal({ "^gen/" })
+  end)
+
+  it("accepts false to disable a key", function()
+    config.setup({ keymaps = { file = { ask = false } } })
+    expect(config.options.keymaps.file.ask).equal(false)
+  end)
+
+  it("reads the older flat keymaps", function()
+    config.setup({ keymaps = { next_change = "]h" } })
+    expect(config.options.keymaps.file.next_change).equal("]h")
+  end)
+
+  it("finds repository settings by folder name", function()
+    config.setup({ repos = { demo = { base = "develop", generated = { "^dist/" } } } })
+    local r = config.repo("/tmp/somewhere/demo")
+    expect(r.name).equal("demo")
+    expect(r.base).equal("develop")
+    expect(vim.tbl_contains(r.generated, "^dist/")).truthy("repository pattern added")
+  end)
+
+  it("uses one model for everything when only `model` is set", function()
+    config.setup({ claude = { model = "haiku" } })
+    expect(config.options.claude.models).equal({})
+  end)
+end)

@@ -1,0 +1,13 @@
+local fx = require("tests.fixture")
+
+describe("saved state", function()
+  it("writes read marks to disk", function()
+    fx.review()
+    local core, state = require("reviewer.core"), require("reviewer.state")
+    state.set_read(core.project, core.step.id, { "src/new.ts" }, true)
+    state.flush_all()
+    local data = vim.json.decode(table.concat(vim.fn.readfile(core.project.data_dir .. "/state.json"), "\n"))
+    expect(data.read["main..feature"]["src/new.ts"] ~= nil).truthy("saved")
+    expect(data.ui.last).equal({ base = "main", head = "feature" })
+  end)
+end)
