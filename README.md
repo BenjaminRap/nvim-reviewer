@@ -7,7 +7,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Full file with its changes.** Each file opens as a normal buffer, read-only by default. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
 - **A review prepared in advance.** `:ReviewPrepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
 - **Claude's comments** above each change block, written once per file and saved.
-- **Read marks.** Mark files, groups or whole folders as read in a side panel, in reading order (database → shared → backend → frontend → tests) or as a folder tree.
+- **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
 - **Notes on lines**, of three kinds: note, question to come back to, issue to fix. They appear in the sign column and at the end of the line.
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
@@ -56,7 +56,7 @@ From anywhere inside a git repository:
 - **`:Review main feature`** reviews `feature` compared with `main`.
 - **`:Review feature`** compares `feature` with the default base (`main`, or `base` in the options).
 - **`:Review`** with no argument offers to continue your last review, or lets you pick the two branches.
-- **`p` in the panel** switches to other branches.
+- **`gB` in the browser** switches to other branches.
 
 Branch names complete with `<Tab>`.
 
@@ -77,8 +77,8 @@ Reviewed files are read-only by default (`readonly = true`). An edit in the hidd
 
 | Command | What it does |
 |---|---|
-| `:Review [base] [branch]` | Start a review (see above) and open the file panel |
-| `:ReviewPanel` | Toggle the file panel |
+| `:Review [base] [branch]` | Start a review (see above) and open the browser |
+| `:ReviewBrowse [folder]` | Open the browser (optionally on a folder) |
 | `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the files of the review |
 | `:ReviewEdit` | Allow changes in the current reviewed file (read-only by default) |
 | `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
@@ -101,11 +101,11 @@ Reviewed files are read-only by default (`readonly = true`). An edit in the hidd
 Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
 - **When you start a review,** the plugin shows what is already prepared and offers to prepare it: everything, only the overview, or not now. With `ai.on_start` you can always prepare or never ask.
-- **Action lines at the top of the panel** (press `<CR>` on a line, or its key):
-  - `A` prepares the review, and `D` stops it.
-  - `O` opens the overview, writing it first if needed.
-  - `Q` opens the quiz, and offers to write it if it doesn't exist yet.
-  - `c` comments the current file.
+- **Keys in the browser** (`g?` lists them):
+  - `gA` prepares the review, and `gS` stops it.
+  - `gO` opens the overview, writing it first if needed.
+  - `gQ` opens the quiz, and offers to write it if it doesn't exist yet.
+  - `gC` comments the file under the cursor.
 - **In a reviewed file,** a hint on the first line tells you when it has no comments yet. `<leader>re` writes them, and asks before writing them again.
 - **Automatic comments on open:** set `ai.comment_on_open = true`, plus `ai.prefetch_next` to also comment the next unread file in the background.
 - **Your questions and quiz hints** run when you ask them. Open answers are graded by Claude unless `ai.grade_open_answers = false`.
@@ -121,13 +121,13 @@ Claude only runs when you ask, unless you configure otherwise (`ai` options).
 Details:
 
 - **Stop and resume.** You can stop at any time with `:ReviewPrepare stop` and run it again later. Files already commented for the same diff are skipped.
-- **Progress and cost.** The panel shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call.
+- **Progress and cost.** The browser's title bar shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call.
 - **Single stages.** `:ReviewPrepare comments` runs one stage only.
 - **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.
 - **A quiz on several branches at once:** review the whole range, e.g. `:Review main feature-c`, and take its quiz.
-- **In the panel:** `C` on a group, folder or file comments just those files, and `O` shows the overview.
+- **In the browser:** `gF` on a folder, group or file comments just those files, and `gO` shows the overview.
 
-Without preparation, you can comment files one at a time (`c` in the panel, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
+Without preparation, you can comment files one at a time (`gC` in the browser, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
 
 ### What Claude sees
 
@@ -140,7 +140,7 @@ Without preparation, you can comment files one at a time (`c` in the panel, `<le
 
 ## Keys
 
-Every key can be changed or disabled (see [Options](#options)). The panel and quiz defaults leave the keys that move the cursor or search alone (`j` `k` `w` `b` `e` `f` `t` `n` `N` `gg` `G` `/` `?`), so you move in them as in any buffer.
+Every key can be changed or disabled (see [Options](#options)). The browser and quiz defaults leave the keys that move the cursor or search alone (`j` `k` `w` `b` `e` `f` `t` `n` `N` `gg` `G` `/` `?`), so you move in them as in any buffer.
 
 **In a reviewed file** (buffer-local, `keymaps.file`):
 
@@ -154,27 +154,29 @@ Every key can be changed or disabled (see [Options](#options)). The panel and qu
 | `<leader>ra` | Ask Claude (normal or visual) |
 | `<leader>re` | Write Claude's comments (asks before writing them again) |
 | `<leader>ri` | About the file: summary, what changed, commits |
+| `-` | Open the browser on the file's folder |
 
-**In the panel** (`keymaps.panel`):
+**In the browser** (`keymaps.browser`). Its text is editable for read marks, so every editing and moving key works as in any buffer; the plugin uses oil's keys and `g` keys:
 
 | Key | Action |
 |---|---|
-| `<CR>` `o` | Open a file, fold a group, run an action line |
-| `<Tab>` `za` | Fold or unfold a group or folder |
-| `x` | Toggle read (file, group or folder) |
-| `X` | Mark read and open the next unread file |
-| `s` | Reading order / folders |
-| `i` | Show or hide generated files |
-| `r` | Show or hide read files |
-| `p` | Review other branches |
-| `c` / `C` | Comment the file / every file of the group or folder |
-| `a` | About the file under the cursor |
-| `A` / `D` | Prepare the review / stop |
-| `O` | Overview of the changes |
-| `Q` | Quiz |
-| `P` / `gn` | Progress / notes |
-| `gc` | Show or hide Claude's comments |
-| `q` / `g?` | Close / help |
+| `<CR>` | Enter a folder / open a file in this window |
+| `<C-s>` / `<C-h>` / `<C-t>` | Open in a vertical split / horizontal split / new tab |
+| `<C-p>` | Preview, staying in the browser |
+| `-` / `_` | Parent folder / root of the review |
+| `gs` | One folder at a time / all files in reading order |
+| `g.` / `gG` | Show or hide unchanged files / generated files |
+| `<C-l>` | Refresh |
+| `gC` / `gF` | Claude's comments on the file / on every file of the folder |
+| `gK` | About the file under the cursor |
+| `gA` / `gS` | Prepare the review / stop |
+| `gO` / `gQ` | Overview of the changes / quiz |
+| `gL` / `gN` | Progress / notes |
+| `gB` | Review other branches |
+| `g?` | Help |
+| edit `[ ]` ↔ `[x]`, then `:w` | Save read marks (a folder's box marks everything inside it) |
+
+In a reviewed file, `-` (`keymaps.file.browse`) opens the browser on the file's folder with the cursor on it, like oil.
 
 **In a quiz** (`keymaps.quiz`): `a`–`f` pick a choice, or `<Space>` on a choice line; `<CR>` check, then next; `i` write an open answer; `d` don't know; `gh` hint; `x` ask Claude why; `1`–`4` open the code a question refers to; `J` / `K` next / previous; `r` retry; `o` results by level; `+` `~` `-` grade yourself when Claude cannot; `q` close (`:ReviewQuiz` resumes).
 
@@ -218,12 +220,10 @@ require("reviewer").setup({
   hide_generated = true,
   order = "reading",            -- or "tree"
   comment_width = 100,          -- maximum width of a comment box
-  panel = {
-    position = "left",          -- or "right"
-    width = 48,
+  browser = {
+    view = "folders",           -- or "reading" (all files in reading order)
     icons = true,               -- mini.icons or nvim-web-devicons, when installed
-    show_actions = true,        -- action lines at the top
-    show_file_summary = true,   -- summary of the current file at the bottom
+    show_unchanged = false,     -- also list unchanged files, dimmed (g. toggles)
   },
   float = {
     border = "rounded",         -- any 'winborder' style
@@ -242,13 +242,13 @@ require("reviewer").setup({
     -- a string, a list of strings, or false to disable; only what you set changes
     file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
              toggle_read = "<leader>rr", read_next = "<leader>rn", note = "<leader>rN",
-             ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri" },
-    panel = { open = { "<CR>", "o" }, fold = { "<Tab>", "za" }, toggle_read = "x", read_next = "X",
-              toggle_order = "s", toggle_generated = "i", toggle_hide_read = "r",
-              new_review = "p",
-              explain = "c", explain_group = "C", about = "a", prepare = "A", stop = "D",
-              overview = "O", quiz = "Q", progress = "P", notes = "gn",
-              toggle_comments = "gc", close = "q", help = "g?" },
+             ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-" },
+    browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
+                preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
+                toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
+                explain = "gC", explain_folder = "gF", about = "gK",
+                prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
+                progress = "gL", notes = "gN", new_review = "gB", help = "g?" },
     quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
              dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
              overview = "o", refs = { "1", "2", "3", "4" },
@@ -286,13 +286,12 @@ Values are aliases accepted by `claude --model` (`opus`, `sonnet`, `haiku`) or f
 - **One model for everything:** set `claude.model` without `models`.
 - **If a model is busy or not on your plan,** `fallback_model` is used instead.
 
-For example, to keep the defaults but put the panel on the right, use `<Space>` to tick files and disable the letter keys in quizzes:
+For example, to open the browser from reviewed files with `<leader>e` (like an `:Oil` mapping) and pick quiz choices only with `<Space>`:
 
 ```lua
 opts = {
-  panel = { position = "right" },
   keymaps = {
-    panel = { toggle_read = "<Space>" },
+    file = { browse = "<leader>e" },
     quiz = { choices = "" }, -- pick with <Space> on the choice line instead
   },
 }
@@ -308,8 +307,7 @@ Every colour comes from a highlight group linked to a standard one, so the plugi
 | `ReviewerDelete` / `ReviewerDeleteSign` | `DiffDelete` / `Removed` | Removed lines and their sign |
 | `ReviewerComment` / `ReviewerCommentTitle` | `DiagnosticVirtualTextInfo` / `DiagnosticInfo` | Claude's comments |
 | `ReviewerNote` / `ReviewerQuestion` / `ReviewerIssue` | `DiagnosticVirtualText{Warn,Hint,Error}` | Notes by kind |
-| `ReviewerHeader` / `ReviewerGroup` | `Title` | Panel title and groups |
-| `ReviewerAction` | `Function` | Panel action lines |
+| `ReviewerHeader` / `ReviewerGroup` | `Title` | Titles and reading-order groups |
 | `ReviewerRead` / `ReviewerDim` | `Comment` | Read files, secondary text |
 | `ReviewerCurrent` | `CursorLine` | The file you are on |
 | `ReviewerOk` / `ReviewerPartial` / `ReviewerBad` | `DiagnosticOk` / `Warn` / `Error` | Results and warnings |
