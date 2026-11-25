@@ -9,6 +9,8 @@ local M = {}
 function M.open()
   if not core.project then return ui.notify("run :Review first", vim.log.levels.WARN) end
   local quiz = require("reviewer.quiz")
+  local keys = require("reviewer.keys")
+  local k = keys.opts("progress")
   local st = state.get(core.project)
   local lines, targets = {}, {}
   local function add(t, target) lines[#lines + 1] = t ; if target then targets[#lines] = target end end
@@ -34,7 +36,7 @@ function M.open()
   end
   table.sort(mistakes, function(a, b) return (a.last.at or "") > (b.last.at or "") end)
   add("")
-  add(("## Mistakes to work on (%d)%s"):format(#mistakes, #mistakes > 0 and "  ·  m: retry them all" or ""))
+  add(("## Mistakes to work on (%d)%s"):format(#mistakes, #mistakes > 0 and ("  ·  %s: retry them all"):format(keys.label(k.retry_mistakes)) or ""))
   add("")
   for i, a in ipairs(mistakes) do
     if i > 60 then add("…") break end
@@ -57,14 +59,14 @@ function M.open()
     if not n.done then open = open + 1 ; by[n.kind] = (by[n.kind] or 0) + 1 end
   end
   add("")
-  add(("## Open notes: %d (%d issues, %d questions, %d notes)  ·  N: list them"):format(open, by.issue, by.question, by.note))
+  add(("## Open notes: %d (%d issues, %d questions, %d notes)  ·  %s: list them"):format(open, by.issue, by.question, by.note, keys.label(k.notes)))
   add("")
-  add("_<CR> on a line opens it · m retry mistakes · N notes · A questions asked · q close_")
+  add(("_%s on a line opens it · %s retry mistakes · %s notes · %s questions asked · %s close_"):format(keys.label(k.open), keys.label(k.retry_mistakes), keys.label(k.notes), keys.label(k.asks), keys.label(keys.opts("float").close)))
 
   local buf = ui.show("Review progress", lines, { width = math.min(120, vim.o.columns - 4) })
-  local function map(lhs, fn) vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true }) end
+  local function map(lhs, fn, desc) keys.map(buf, "n", lhs, fn, desc or "progress") end
   local function close() vim.cmd("close") end
-  map("<CR>", function()
+  map(k.open, function()
     local t = targets[vim.api.nvim_win_get_cursor(0)[1]]
     if not t then return end
     close()
@@ -73,9 +75,9 @@ function M.open()
     elseif t.kind == "question" then quiz.open_question(t.quiz, t.qid)
     elseif t.kind == "ask" then require("reviewer.ask").show_answer(t.ask) end
   end)
-  map("m", function() close() ; quiz.open("mistakes") end)
-  map("N", function() close() ; require("reviewer.notes").list() end)
-  map("A", function() close() ; require("reviewer.ask").list() end)
+  map(k.retry_mistakes, function() close() ; quiz.open("mistakes") end)
+  map(k.notes, function() close() ; require("reviewer.notes").list() end)
+  map(k.asks, function() close() ; require("reviewer.ask").list() end)
 end
 
 return M

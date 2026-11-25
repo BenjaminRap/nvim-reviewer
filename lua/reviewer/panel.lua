@@ -13,19 +13,60 @@ local M = {
 }
 local ns = vim.api.nvim_create_namespace("reviewer_panel")
 
-local HELP = {
-  "<CR> o  open file            x  toggle read (file, group or folder)",
-  "<Tab>   fold group/folder    n  mark read and open next unread",
-  "t       reading order/folders  g  show/hide generated files",
-  "h       hide/show read files   s  choose step   ]s [s  next/prev step",
-  "e       comment file again     a  about the file under the cursor",
-  "A       prepare the step with Claude (overview, comments, quiz)   S  stop",
-  "O       step overview (written first if missing)",
-  "E       comment every file of the group/folder (or the file under the cursor)",
-  "Q  F    step quiz / final quiz (offers to write it if missing)",
-  "P       progress               N  notes",
-  "C       show/hide comments     q  close panel   ?  this help",
-}
+local keys = require("reviewer.keys")
+local function K(name) return keys.label(keys.opts("panel")[name]) end
+local function sym(name) return config.options.symbols[name] end
+
+local function help_lines()
+  local k = keys.opts("panel")
+  local rows = {
+    { k.open, "open a file, fold a group, run an action line" },
+    { k.fold, "fold or unfold a group or folder" },
+    { k.toggle_read, "toggle read (file, group or folder)" },
+    { k.read_next, "mark read and open the next unread file" },
+    { k.toggle_order, "reading order / folders" },
+    { k.toggle_generated, "show or hide generated files" },
+    { k.toggle_hide_read, "show or hide read files" },
+    { k.pick_step, "choose the step" },
+    { { keys.label(k.next_step), keys.label(k.prev_step) }, "next / previous step" },
+    { k.explain, "Claude's comments on the file under the cursor" },
+    { k.explain_group, "comment every file of the group or folder" },
+    { k.about, "about the file under the cursor" },
+    { k.prepare, "prepare the step with Claude (overview, comments, quiz)" },
+    { k.stop, "stop preparing" },
+    { k.overview, "step overview (written first if missing)" },
+    { k.quiz, "step quiz (offers to write it if missing)" },
+    { k.final_quiz, "final quiz" },
+    { k.progress, "progress" },
+    { k.notes, "notes" },
+    { k.toggle_comments, "show or hide Claude's comments" },
+    { k.close, "close the panel" },
+    { k.help, "this help" },
+  }
+  local out = {}
+  for _, r in ipairs(rows) do
+    local l = keys.labels(r[1])
+    if vim.trim(l) ~= "" then out[#out + 1] = ("%-14s %s"):format(l, r[2]) end
+  end
+  return out
+end
+
+-- File icon from mini.icons or nvim-web-devicons, if installed.
+local function icon(path)
+  if not config.options.panel.icons then return nil end
+  local name = vim.fs.basename(path)
+  local ok, mi = pcall(require, "mini.icons")
+  if ok and type(mi) == "table" and mi.get and _G.MiniIcons then
+    local ok2, ic, hl = pcall(mi.get, "file", name)
+    if ok2 and ic then return ic, hl end
+  end
+  local okd, dev = pcall(require, "nvim-web-devicons")
+  if okd and dev.get_icon then
+    local ic, hl = dev.get_icon(name, name:match("%.([^.]+)$"), { default = true })
+    if ic then return ic, hl end
+  end
+  return nil
+end
 
 local function is_open() return M.win and vim.api.nvim_win_is_valid(M.win) end
 
@@ -58,21 +99,25 @@ local function build()
   local quiz = require("reviewer.quiz")
   local ps = prep.status(step.id)
   local s = prep.step_state(step)
+  local show_actions = config.options.panel.show_actions
+  if ps and not show_actions then add(ps, nil, "ReviewerPartial") end
+  if show_actions then
   add("")
   if ps then
     add(ps, nil, "ReviewerPartial")
-    add("■ S  stop preparing", { kind = "action", run = function() prep.command({ "stop" }) end }, "ReviewerAction")
+    add(("%s %s  stop preparing"):format(sym("stop"), K("stop")), { kind = "action", run = function() prep.command({ "stop" }) end }, "ReviewerAction")
   elseif not (s.overview and s.commented >= s.total and s.quiz) then
-    add(("▶ A  prepare this step with Claude (comments %d/%d)"):format(s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "ReviewerAction")
+    add(("%s %s  prepare this step with Claude (comments %d/%d)"):format(sym("action"), K("prepare"), s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "ReviewerAction")
   end
-  add("▶ O  " .. (s.overview and "step overview" or "write the step overview (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "ReviewerAction")
+  add(("%s %s  "):format(sym("action"), K("overview")) .. (s.overview and "step overview" or "write the step overview (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "ReviewerAction")
   local qs = quiz.stats("step" .. step.id)
-  add("▶ Q  " .. (s.quiz and ("step quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the step quiz"), { kind = "action", run = function() M.take_quiz("step" .. step.id) end }, "ReviewerAction")
+  add(("%s %s  "):format(sym("action"), K("quiz")) .. (s.quiz and ("step quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the step quiz"), { kind = "action", run = function() M.take_quiz("step" .. step.id) end }, "ReviewerAction")
   local fs = quiz.stats("final")
-  add("▶ F  " .. (fs.total and ("final quiz (%d/%d answered)"):format(fs.answered, fs.total) or "write the final quiz"), { kind = "action", run = function() M.take_quiz("final") end }, "ReviewerAction")
+  add(("%s %s  "):format(sym("action"), K("final_quiz")) .. (fs.total and ("final quiz (%d/%d answered)"):format(fs.answered, fs.total) or "write the final quiz"), { kind = "action", run = function() M.take_quiz("final") end }, "ReviewerAction")
   if core.current and core.current.step.id == step.id and not core.current.file.generated and not explain.get(core.current) then
     local ctx = core.current
-    add("▶ e  comment " .. vim.fs.basename(ctx.file.path), { kind = "action", run = function() require("reviewer.review").explain_ctx(ctx, false) end }, "ReviewerAction")
+    add(("%s %s  comment "):format(sym("action"), K("explain")) .. vim.fs.basename(ctx.file.path), { kind = "action", run = function() require("reviewer.review").explain_ctx(ctx, false) end }, "ReviewerAction")
+  end
   end
   add("")
 
@@ -87,17 +132,20 @@ local function build()
   local function file_line(f, indent, label, hint)
     local r = core.is_read(f.path, step)
     if M.hide_read and r and f.path ~= cur then return end
-    local text = ("%s[%s] %s %s"):format(indent, r and "x" or " ", f.status, label)
+    local ic, ic_hl = icon(f.path)
+    local head = ("%s[%s] %s "):format(indent, r and sym("read") or sym("unread"), f.status)
+    local text = head .. (ic and (ic .. " ") or "") .. label
     local tail = ""
     if hint and hint ~= "" then tail = tail .. "  " .. hint end
     local stats = f.binary and "  bin" or ("  +%d −%d"):format(f.add, f.del)
     tail = tail .. stats
-    if notes_count[f.path] then tail = tail .. "  ●" .. notes_count[f.path] end
-    if ex[step.id .. "|" .. f.path] then tail = tail .. " ✦" end
-    if explain.status[step.id .. "|" .. f.path] == "pending" then tail = tail .. " …" end
+    if notes_count[f.path] then tail = tail .. "  " .. sym("note") .. notes_count[f.path] end
+    if ex[step.id .. "|" .. f.path] then tail = tail .. " " .. sym("comment") end
+    if explain.status[step.id .. "|" .. f.path] == "pending" then tail = tail .. " " .. sym("pending") end
     add(text .. tail, { kind = "file", file = f })
     local l = #lines
     if r then hl_range(l, 0, -1, "ReviewerRead") end
+    if ic and ic_hl and not r then hl_range(l, #head, #head + #ic, ic_hl) end
     local s = #text
     if hint and hint ~= "" then hl_range(l, s, s + 2 + #hint, "ReviewerDim") ; s = s + 2 + #hint end
     local plus = stats:match("^  %+%d+") or ""
@@ -111,9 +159,9 @@ local function build()
   local function group_line(key, label, indent, paths)
     local done = 0
     for _, p in ipairs(paths) do if core.is_read(p, step) then done = done + 1 end end
-    local mark = done == 0 and " " or (done == #paths and "x" or "-")
+    local mark = done == 0 and sym("unread") or (done == #paths and sym("read") or sym("partly_read"))
     local folded = M.collapsed[step.id .. ":" .. key]
-    add(("%s%s [%s] %s  %d/%d"):format(indent, folded and "▸" or "▾", mark, label, done, #paths), { kind = "group", key = key, paths = paths }, "ReviewerGroup")
+    add(("%s%s [%s] %s  %d/%d"):format(indent, folded and sym("fold_closed") or sym("fold_open"), mark, label, done, #paths), { kind = "group", key = key, paths = paths }, "ReviewerGroup")
     return folded
   end
 
@@ -170,18 +218,18 @@ local function build()
     add("")
   end
 
-  if core.current and core.current.step.id == step.id then
+  if config.options.panel.show_file_summary and core.current and core.current.step.id == step.id then
     local e = explain.get(core.current)
     add("── " .. core.current.file.path:match("[^/]+$") .. " ──", nil, "ReviewerHeader")
     if e then
       for _, l in ipairs(ui.wrap(e.summary, (config.options.panel.width or 48) - 2)) do add(l) end
     else
       local s = explain.status[explain.key(core.current)]
-      add(s == "pending" and "Claude is writing comments…" or (s and s:sub(1, 60)) or "no comments yet (e)", nil, "ReviewerDim")
+      add(s == "pending" and "Claude is writing comments…" or (s and s:sub(1, 60)) or ("no comments yet (" .. K("explain") .. ")"), nil, "ReviewerDim")
     end
     add("")
   end
-  add("? help", nil, "ReviewerDim")
+  if K("help") ~= "" then add(K("help") .. " help", nil, "ReviewerDim") end
   return lines, hls, items
 end
 
@@ -208,17 +256,22 @@ local function act(fn) return function() local it = item_at_cursor() ; if it the
 
 local function setup_keys(buf)
   local review = require("reviewer.review")
-  local function map(lhs, fn) vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true }) end
-  local open = act(function(it)
+  local k = keys.opts("panel")
+  local function map(lhs, fn, desc) keys.map(buf, "n", lhs, fn, desc) end
+  local function fold(it)
+    if it.kind == "group" then
+      local key = core.step.id .. ":" .. it.key
+      M.collapsed[key] = not M.collapsed[key]
+      M.render()
+    end
+  end
+  map(k.open, act(function(it)
     if it.kind == "action" then it.run()
     elseif it.kind == "file" then review.open(core.step, it.file)
-    elseif it.kind == "group" then M.collapsed[core.step.id .. ":" .. it.key] = not M.collapsed[core.step.id .. ":" .. it.key] ; M.render() end
-  end)
-  map("<CR>", open) ; map("o", open)
-  map("<Tab>", act(function(it)
-    if it.kind == "group" then M.collapsed[core.step.id .. ":" .. it.key] = not M.collapsed[core.step.id .. ":" .. it.key] ; M.render() end
-  end))
-  map("x", act(function(it)
+    else fold(it) end
+  end), "open")
+  map(k.fold, act(fold), "fold")
+  map(k.toggle_read, act(function(it)
     if it.kind == "file" then
       state.set_read(core.project, core.step.id, { it.file.path }, not core.is_read(it.file.path))
     elseif it.kind == "group" then
@@ -227,33 +280,33 @@ local function setup_keys(buf)
       state.set_read(core.project, core.step.id, it.paths, not all)
     end
     core.changed()
-  end))
-  map("n", function() review.read_next() end)
-  map("t", function() M.order = (M.order == "tree") and "reading" or "tree" ; M.render() end)
-  map("g", function() M.hide_generated = not M.hide_generated ; M.render() end)
-  map("h", function() M.hide_read = not M.hide_read ; M.render() end)
-  map("s", function() M.pick_step() end)
-  map("]s", function() core.set_step(math.min(#core.project.steps, core.step.index + 1)) end)
-  map("[s", function() core.set_step(math.max(1, core.step.index - 1)) end)
-  map("e", act(function(it)
-    if it.kind ~= "file" then return end
-    review.explain_ctx(core.make_ctx(core.step, it.file), false)
-  end))
-  map("a", act(function(it) if it.kind == "file" then review.open(core.step, it.file) ; review.about() end end))
-  map("Q", function() M.take_quiz("step" .. core.step.id) end)
-  map("F", function() M.take_quiz("final") end)
-  map("O", function() require("reviewer.prepare").overview_then_show(core.step) end)
-  map("A", function() require("reviewer.prepare").step(core.step) end)
-  map("S", function() require("reviewer.prepare").command({ "stop" }) end)
-  map("E", act(function(it)
+  end), "toggle read")
+  map(k.read_next, function() review.read_next() end, "mark read and open the next unread file")
+  map(k.toggle_order, function() M.order = (M.order == "tree") and "reading" or "tree" ; M.render() end, "reading order / folders")
+  map(k.toggle_generated, function() M.hide_generated = not M.hide_generated ; M.render() end, "show or hide generated files")
+  map(k.toggle_hide_read, function() M.hide_read = not M.hide_read ; M.render() end, "show or hide read files")
+  map(k.pick_step, function() M.pick_step() end, "choose the step")
+  map(k.next_step, function() core.set_step(math.min(#core.project.steps, core.step.index + 1)) end, "next step")
+  map(k.prev_step, function() core.set_step(math.max(1, core.step.index - 1)) end, "previous step")
+  map(k.explain, act(function(it)
+    if it.kind == "file" then review.explain_ctx(core.make_ctx(core.step, it.file), false)
+    elseif it.kind == "action" then it.run() end
+  end), "Claude's comments on the file")
+  map(k.explain_group, act(function(it)
     local paths = it.kind == "group" and it.paths or (it.kind == "file" and { it.file.path }) or nil
     if paths then require("reviewer.prepare").paths(core.step, paths) end
-  end))
-  map("P", function() require("reviewer.progress").open() end)
-  map("N", function() require("reviewer.notes").list() end)
-  map("C", function() review.toggle_comments() end)
-  map("q", function() M.close() end)
-  map("?", function() ui.show("Review panel keys", HELP, { width = 72, height = #HELP + 2 }) end)
+  end), "comment every file of the group")
+  map(k.about, act(function(it) if it.kind == "file" then review.open(core.step, it.file) ; review.about() end end), "about the file")
+  map(k.prepare, function() require("reviewer.prepare").step(core.step) end, "prepare the step")
+  map(k.stop, function() require("reviewer.prepare").command({ "stop" }) end, "stop preparing")
+  map(k.overview, function() require("reviewer.prepare").overview_then_show(core.step) end, "step overview")
+  map(k.quiz, function() M.take_quiz("step" .. core.step.id) end, "step quiz")
+  map(k.final_quiz, function() M.take_quiz("final") end, "final quiz")
+  map(k.progress, function() require("reviewer.progress").open() end, "progress")
+  map(k.notes, function() require("reviewer.notes").list() end, "notes")
+  map(k.toggle_comments, function() review.toggle_comments() end, "show or hide comments")
+  map(k.close, function() M.close() end, "close the panel")
+  map(k.help, function() local h = help_lines() ; ui.show("Review panel keys", h, { width = 76, height = #h + 2 }) end, "help")
 end
 
 function M.take_quiz(id)
@@ -283,7 +336,7 @@ function M.open()
     vim.bo[M.buf].bufhidden = "hide"
     setup_keys(M.buf)
   end
-  vim.cmd("topleft vsplit")
+  vim.cmd((config.options.panel.position == "right" and "botright" or "topleft") .. " vsplit")
   M.win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(M.win, M.buf)
   vim.api.nvim_win_set_width(M.win, config.options.panel.width or 48)

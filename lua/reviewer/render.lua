@@ -20,12 +20,14 @@ function M.setup_highlights()
   for k, v in pairs(links) do vim.api.nvim_set_hl(0, k, { link = v, default = true }) end
 end
 
-local KIND = {
-  note = { sign = "●", hl = "ReviewerNote", name = "Note" },
-  question = { sign = "?", hl = "ReviewerQuestion", name = "Question" },
-  issue = { sign = "!", hl = "ReviewerIssue", name = "Issue" },
-  ai = { sign = "✦", hl = "ReviewerComment", name = "Claude answer" },
-}
+local function sym(name) return config.options.symbols[name] end
+local KIND = setmetatable({
+  note = { sym = "note", hl = "ReviewerNote", name = "Note" },
+  question = { sym = "question", hl = "ReviewerQuestion", name = "Question" },
+  issue = { sym = "issue", hl = "ReviewerIssue", name = "Issue" },
+  ai = { sym = "answer", hl = "ReviewerComment", name = "Claude answer" },
+}, {})
+for _, k in pairs(KIND) do setmetatable(k, { __index = function(t, key) if key == "sign" then return sym(t.sym) end end }) end
 M.KIND = KIND
 
 local function pad(text, width)
@@ -44,9 +46,11 @@ local function comment_lines(texts, width)
   for i, t in ipairs(texts) do
     if i > 1 then out[#out + 1] = { { "", "" } } end
     local wrapped = ui.wrap(t, math.max(30, width - 6))
+    local mark = " " .. sym("comment") .. " "
+    local blank = string.rep(" ", vim.fn.strdisplaywidth(mark))
     for j, l in ipairs(wrapped) do
       out[#out + 1] = {
-        { j == 1 and " ✦ " or "   ", "ReviewerCommentTitle" },
+        { j == 1 and mark or blank, "ReviewerCommentTitle" },
         { pad(l, width - 4), "ReviewerComment" },
       }
     end
@@ -91,7 +95,7 @@ function M.draw(buf)
         end
       end
       for _, a in pairs(at) do
-        local vl = comment_lines(a.texts, width)
+        local vl = comment_lines(a.texts, math.min(width, (config.options.comment_width or 100) + 6))
         if a.line == 1 and a.above then top_fill = top_fill + #vl end
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(a.line), 0, { virt_lines = vl, virt_lines_above = a.above, priority = 20 })
       end
@@ -100,20 +104,20 @@ function M.draw(buf)
 
   if ctx.deleted then
     for l = 1, nlines do
-      vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = "-", sign_hl_group = "ReviewerDeleteSign" })
+      vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = sym("removed"), sign_hl_group = "ReviewerDeleteSign" })
     end
   else
     for _, h in ipairs(ctx.hunks) do
       if h.new_count > 0 then
         for l = h.new_start, math.min(nlines, h.new_start + h.new_count - 1) do
-          vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerAdd", sign_text = "+", sign_hl_group = "ReviewerAddSign", priority = 10 })
+          vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerAdd", sign_text = sym("added"), sign_hl_group = "ReviewerAddSign", priority = 10 })
         end
       end
-      if #h.removed > 0 then
+      if #h.removed > 0 and config.options.show_removed then
         local vl = {}
         for _, r in ipairs(h.removed) do
           local t = r:gsub("\t", string.rep(" ", ts))
-          vl[#vl + 1] = { { pad("- " .. t, width), "ReviewerDelete" } }
+          vl[#vl + 1] = { { pad(sym("removed_prefix") .. t, width), "ReviewerDelete" } }
         end
         if h.anchor == 1 and h.above then top_fill = top_fill + #vl end
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(h.anchor), 0, { virt_lines = vl, virt_lines_above = h.above, priority = 10 })
@@ -135,10 +139,10 @@ function M.draw(buf)
   if not ctx.file.generated and not ctx.file.binary then
     local ex = require("reviewer.explain")
     local hint
-    if ex.status[ex.key(ctx)] == "pending" then hint = "✦ Claude is writing comments on this file…"
+    if ex.status[ex.key(ctx)] == "pending" then hint = sym("comment") .. " Claude is writing comments on this file" .. sym("pending")
     elseif not ex.get(ctx) then
-      local key = (config.options.keymaps or {}).explain
-      hint = "✦ no Claude comments yet" .. ((key and key ~= "") and (": " .. key) or ": :ReviewExplain")
+      local key = require("reviewer.keys").label(config.options.keymaps.file.explain)
+      hint = sym("comment") .. " no Claude comments yet" .. ((key and key ~= "") and (": " .. key) or ": :ReviewExplain")
     end
     if hint then
       vim.api.nvim_buf_set_extmark(buf, M.ns, 0, 0, { virt_text = { { "  " .. hint, "ReviewerDim" } }, virt_text_pos = "eol", priority = 5 })

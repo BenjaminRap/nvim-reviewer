@@ -23,13 +23,15 @@ function M.wrap(text, width)
 end
 
 function M.float(opts)
-  local width = opts.width or math.floor(vim.o.columns * 0.8)
-  local height = opts.height or math.floor(vim.o.lines * 0.8)
+  local fc = require("reviewer.config").options.float
+  local function size(v, total) return v <= 1 and math.floor(total * v) or v end
+  local width = opts.width or size(fc.width or 0.8, vim.o.columns)
+  local height = opts.height or size(fc.height or 0.8, vim.o.lines)
   width, height = math.min(width, vim.o.columns - 4), math.min(height, vim.o.lines - 4)
   local buf = opts.buf or vim.api.nvim_create_buf(false, true)
   vim.bo[buf].bufhidden = "wipe"
   local wcfg = {
-    relative = "editor", style = "minimal", border = "rounded",
+    relative = "editor", style = "minimal", border = fc.border or "rounded",
     width = width, height = height,
     row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1), col = math.floor((vim.o.columns - width) / 2),
   }
@@ -53,11 +55,11 @@ end
 -- Read-only markdown text in a float; q or <Esc> closes it.
 function M.show(title, lines, opts)
   opts = opts or {}
-  local buf, win = M.float({ title = title, filetype = "markdown", width = opts.width, height = opts.height, footer = opts.footer or "q close" })
+  local keys = require("reviewer.keys")
+  local close = keys.opts("float").close
+  local buf, win = M.float({ title = title, filetype = "markdown", width = opts.width, height = opts.height, footer = opts.footer or (keys.labels(close) .. " close") })
   M.set_lines(buf, lines)
-  for _, k in ipairs({ "q", "<Esc>" }) do
-    vim.keymap.set("n", k, function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, nowait = true })
-  end
+  keys.map(buf, "n", close, function() pcall(vim.api.nvim_win_close, win, true) end, "close")
   return buf, win
 end
 
@@ -66,7 +68,10 @@ function M.input(opts, on_submit)
   local buf, win = M.float({
     title = opts.title, filetype = opts.filetype or "markdown",
     width = opts.width or math.min(100, math.floor(vim.o.columns * 0.7)), height = opts.height or 12,
-    footer = "<C-s> or <CR> save · q cancel",
+    footer = (function()
+      local keys, k = require("reviewer.keys"), require("reviewer.keys").opts("input")
+      return ("%s or %s save · %s cancel"):format(keys.label(k.submit), keys.label(k.submit_normal), keys.label(k.cancel))
+    end)(),
   })
   vim.bo[buf].buftype = "nofile"
   if opts.header then
@@ -92,10 +97,11 @@ function M.input(opts, on_submit)
     done = true
     pcall(vim.api.nvim_win_close, win, true)
   end
-  vim.keymap.set({ "n", "i" }, "<C-s>", submit, { buffer = buf })
-  vim.keymap.set("n", "<CR>", submit, { buffer = buf })
-  vim.keymap.set("n", "q", cancel, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "<Esc>", cancel, { buffer = buf, nowait = true })
+  local keys = require("reviewer.keys")
+  local k = keys.opts("input")
+  keys.map(buf, { "n", "i" }, k.submit, submit, "save")
+  keys.map(buf, "n", k.submit_normal, submit, "save")
+  keys.map(buf, "n", k.cancel, cancel, "cancel")
   vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(buf), 0 })
   vim.cmd("startinsert!")
 end

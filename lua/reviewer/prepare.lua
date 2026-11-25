@@ -509,26 +509,26 @@ function M.show_overview(step)
   local o = explain.overview(core.project, step)
   if not o then return ui.notify("no overview for step " .. step.id .. " yet: :ReviewPrepare " .. step.id) end
   local lines = { ("# Step %s: %s"):format(step.id, step.label), "", ("_%s → %s · written %s_"):format(step.base_branch, step.branch, ui.fmt_date(o.at)), "" }
-  vim.list_extend(lines, ui.wrap(o.summary, 96))
+  vim.list_extend(lines, ui.wrap(o.summary, config.options.float.text_width or 96))
   if #o.flows > 0 then
     vim.list_extend(lines, { "", "## Main flows", "" })
     for _, fl in ipairs(o.flows) do
-      vim.list_extend(lines, ui.wrap("- **" .. fl.name .. "**: " .. fl.description, 96))
+      vim.list_extend(lines, ui.wrap("- **" .. fl.name .. "**: " .. fl.description, config.options.float.text_width or 96))
     end
   end
   if #o.concepts > 0 then
     vim.list_extend(lines, { "", "## Key concepts", "" })
-    for _, c in ipairs(o.concepts) do vim.list_extend(lines, ui.wrap("- " .. c, 96)) end
+    for _, c in ipairs(o.concepts) do vim.list_extend(lines, ui.wrap("- " .. c, config.options.float.text_width or 96)) end
   end
   if #o.risks > 0 then
     vim.list_extend(lines, { "", "## To check carefully", "" })
-    for _, r in ipairs(o.risks) do vim.list_extend(lines, ui.wrap("- " .. r, 96)) end
+    for _, r in ipairs(o.risks) do vim.list_extend(lines, ui.wrap("- " .. r, config.options.float.text_width or 96)) end
   end
   if #o.files > 0 then
     vim.list_extend(lines, { "", "## Files", "" })
-    for _, fr in ipairs(o.files) do vim.list_extend(lines, ui.wrap("- `" .. fr.path .. "`: " .. fr.role, 96)) end
+    for _, fr in ipairs(o.files) do vim.list_extend(lines, ui.wrap("- `" .. fr.path .. "`: " .. fr.role, config.options.float.text_width or 96)) end
   end
-  ui.show("Step overview", lines, { width = 104 })
+  ui.show("Step overview", lines, { width = (config.options.float.text_width or 96) + 8 })
 end
 
 return M

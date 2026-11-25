@@ -13,7 +13,10 @@ local M = { s = nil, buf = nil, win = nil }
 local ns = vim.api.nvim_create_namespace("reviewer_quiz")
 local LEVELS = { "Architecture", "Flows & design", "Files & responsibilities", "Implementation", "Line-level details" }
 M.LEVELS = LEVELS
-local LETTERS = "abcdef"
+local LETTERS = "abcdef" -- choice labels shown and sent to Claude
+local keys = require("reviewer.keys")
+local function TW() return config.options.float.text_width or 96 end
+local function KL(name) return keys.labels(keys.opts("quiz")[name]) end
 
 local quizzes -- id -> quiz
 
@@ -107,7 +110,7 @@ local function render()
   local it, q = cur()
   local lines, marks = {}, {}
   local function add(t) lines[#lines + 1] = t end
-  local function addw(t, w) for _, l in ipairs(ui.wrap(t, w or 96)) do add(l) end end
+  local function addw(t, w) for _, l in ipairs(ui.wrap(t, w or TW())) do add(l) end end
   if not q then
     add("# " .. title(s.quiz))
     add("")
@@ -134,6 +137,7 @@ local function render()
   end
   add("")
   local choice_lines = {}
+  M.choice_at = {}
   if q.type == "open" then
     if s.text ~= "" then
       add("**Your answer:**")
@@ -146,9 +150,11 @@ local function render()
     for _, a in ipairs(q.answer or {}) do answer[a + 1] = true end
     for i, c in ipairs(q.choices or {}) do
       local picked = s.sel[i] and "x" or " "
-      local w = ui.wrap(c, 90)
+      local w = ui.wrap(c, TW() - 6)
       add(("[%s] %s. %s"):format(picked, LETTERS:sub(i, i), w[1] or ""))
       choice_lines[i] = #lines
+      M.choice_at = M.choice_at or {}
+      M.choice_at[#lines] = i
       for j = 2, #w do add("       " .. w[j]) end
       if r then
         if answer[i] then marks[#marks + 1] = { choice_lines[i], "ReviewerAdd" }
@@ -169,22 +175,34 @@ local function render()
     if q.reference and q.reference ~= "" then add("") ; add(q.type == "open" and "**Reference answer**" or "**In short**") ; addw(q.reference) end
     if q.explanation and q.explanation ~= "" then add("") ; add("**Why**") ; addw(q.explanation) end
     if q.refs and #q.refs > 0 then
-      add("") ; add("**See the code** (press the number)")
+      add("") ; add("**See the code** (press its key)")
+      local ref_keys = keys.list(keys.opts("quiz").refs)
       for i, ref in ipairs(q.refs) do
-        if i > 4 then break end
-        add(("  %d. %s:%s%s"):format(i, ref.path, ref.line or "", (ref.endLine and ref.endLine ~= ref.line) and ("-" .. ref.endLine) or ""))
+        if i > math.max(#ref_keys, 1) then break end
+        add(("  %s. %s:%s%s"):format(keys.list(keys.opts("quiz").refs)[i] or tostring(i), ref.path, ref.line or "", (ref.endLine and ref.endLine ~= ref.line) and ("-" .. ref.endLine) or ""))
       end
     end
-    if r.self_grade then add("") ; add("**How did you do?**  `+` I had it · `~` partly · `-` I missed it") end
+    if r.self_grade then add("") ; add(("**How did you do?**  `%s` I had it · `%s` partly · `%s` I missed it"):format(KL("self_correct"), KL("self_partial"), KL("self_wrong"))) end
   end
   ui.set_lines(M.buf, lines)
   vim.api.nvim_buf_clear_namespace(M.buf, ns, 0, -1)
   for _, m in ipairs(marks) do
     vim.api.nvim_buf_set_extmark(M.buf, ns, m[1] - 1, 0, { line_hl_group = m[2] })
   end
-  local footer = r and "<CR>/n next · 1-4 open code · x ask Claude · r retry · o overview · q close"
-    or (q.type == "open" and "i answer · d don't know · H hint · n skip · p back · q close"
-      or "a-f pick · <CR> check · d don't know · H hint · n skip · p back · q close")
+  local function part(name, text) local l = KL(name) ; return l ~= "" and (l .. " " .. text) or nil end
+  local parts
+  if r then
+    parts = { part("check", "next"), part("next", "next"), part("refs", "open code"), part("explain", "ask Claude"), part("retry", "retry"), part("overview", "overview"), part("close", "close") }
+  else
+    local ck = keys.opts("quiz").choices
+    parts = {
+      q.type == "open" and part("answer", "answer") or ((ck and ck ~= "") and (ck:sub(1, 1) .. "-" .. ck:sub(-1) .. " pick") or nil),
+      q.type ~= "open" and part("toggle_choice", "toggle choice under cursor") or nil,
+      q.type ~= "open" and part("check", "check") or nil,
+      part("dont_know", "don't know"), part("hint", "hint"), part("next", "skip"), part("prev", "back"), part("close", "close"),
+    }
+  end
+  local footer = table.concat(vim.tbl_filter(function(x) return x end, parts), " · ")
   if M.win and vim.api.nvim_win_is_valid(M.win) then
     pcall(vim.api.nvim_win_set_config, M.win, { footer = " " .. footer .. " ", footer_pos = "center" })
     pcall(vim.api.nvim_win_set_cursor, M.win, { 1, 0 })
@@ -428,25 +446,30 @@ local function show()
     vim.api.nvim_set_current_win(M.win)
     return render()
   end
-  M.buf, M.win = ui.float({ title = "Review quiz", filetype = "markdown", width = 104 })
+  M.buf, M.win = ui.float({ title = "Review quiz", filetype = "markdown", width = TW() + 8 })
   local buf = M.buf
-  local function map(lhs, fn) vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true }) end
-  for i = 1, #LETTERS do map(LETTERS:sub(i, i), function() M.toggle_choice(i) end) end
-  map("<CR>", function() if M.s.result and not M.s.result.self_grade then M.go(1) else M.submit(false) end end)
-  map("n", function() M.go(1) end)
-  map("p", function() M.go(-1) end)
-  map("d", function() M.submit(true) end)
-  map("i", function() M.answer() end)
-  map("r", function() reset() ; render() end)
-  map("H", function() M.ask("hint") end)
-  map("x", function() M.ask("explain") end)
-  map("o", function() M.overview() end)
-  map("+", function() M.self_grade("correct") end)
-  map("~", function() M.self_grade("partial") end)
-  map("-", function() M.self_grade("wrong") end)
-  for i = 1, 4 do map(tostring(i), function() M.open_ref(i) end) end
-  map("q", function() M.close() end)
-  map("<Esc>", function() M.close() end)
+  local k = keys.opts("quiz")
+  local function map(lhs, fn, desc) keys.map(buf, "n", lhs, fn, desc or "quiz") end
+  local ck = k.choices or ""
+  for i = 1, #ck do map(ck:sub(i, i), function() M.toggle_choice(i) end, "pick choice " .. i) end
+  map(k.toggle_choice, function()
+    local i = M.choice_at and M.choice_at[vim.api.nvim_win_get_cursor(0)[1]]
+    if i then M.toggle_choice(i) end
+  end, "toggle the choice under the cursor")
+  map(k.check, function() if M.s.result and not M.s.result.self_grade then M.go(1) else M.submit(false) end end, "check / next")
+  map(k.next, function() M.go(1) end, "next question")
+  map(k.prev, function() M.go(-1) end, "previous question")
+  map(k.dont_know, function() M.submit(true) end, "don't know")
+  map(k.answer, function() M.answer() end, "write an answer")
+  map(k.retry, function() reset() ; render() end, "retry")
+  map(k.hint, function() M.ask("hint") end, "hint")
+  map(k.explain, function() M.ask("explain") end, "ask Claude why")
+  map(k.overview, function() M.overview() end, "results by level")
+  map(k.self_correct, function() M.self_grade("correct") end, "I had it")
+  map(k.self_partial, function() M.self_grade("partial") end, "partly")
+  map(k.self_wrong, function() M.self_grade("wrong") end, "I missed it")
+  for i, lhs in ipairs(keys.list(k.refs)) do map(lhs, function() M.open_ref(i) end, "open code " .. i) end
+  map(k.close, function() M.close() end, "close")
   render()
 end
 
