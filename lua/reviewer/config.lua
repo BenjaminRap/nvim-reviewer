@@ -40,22 +40,84 @@ M.defaults = {
     offer_missing_quiz = true, -- offer to write a quiz when you open one that does not exist
     grade_open_answers = true, -- Claude grades open answers; false = you grade yourself
   },
-  show_comments = true,
+  show_comments = true, -- Claude's comments above the code
+  show_removed = true, -- removed lines shown in place, in red
   hide_generated = true,
   order = "reading", -- "reading" (groups) or "tree" (folders)
-  panel = { width = 48 },
-  comment_width = 100,
+  comment_width = 100, -- maximum width of a comment box
+  panel = {
+    position = "left", -- "left" or "right"
+    width = 48,
+    icons = true, -- file icons from mini.icons or nvim-web-devicons, when installed
+    show_actions = true, -- action lines at the top (prepare, overview, quizzes)
+    show_file_summary = true, -- summary of the current file at the bottom
+  },
+  float = {
+    border = "rounded",
+    width = 0.8, -- floats (quiz, answers, progress): fraction of the editor, or columns if > 1
+    height = 0.8,
+    text_width = 96, -- wrap width of text in floats
+  },
+  symbols = {
+    read = "x", unread = " ", partly_read = "-",
+    fold_open = "▾", fold_closed = "▸",
+    added = "+", removed = "-", -- signs in reviewed files
+    removed_prefix = "- ", -- before each removed line shown in place
+    comment = "✦", pending = "…",
+    note = "●", question = "?", issue = "!", answer = "✦",
+    action = "▶", stop = "■",
+  },
+  -- Every key can be a string, a list of strings, or false to disable it.
   keymaps = {
-    next_change = "]c",
-    prev_change = "[c",
-    next_file = "]f",
-    prev_file = "[f",
-    toggle_read = "<leader>rr",
-    read_next = "<leader>rn",
-    note = "<leader>rN",
-    ask = "<leader>ra",
-    explain = "<leader>re",
-    panel = "<leader>rp",
+    -- in reviewed files (buffer-local)
+    file = {
+      next_change = "]c", prev_change = "[c",
+      next_file = "]f", prev_file = "[f",
+      toggle_read = "<leader>rr",
+      read_next = "<leader>rn", -- mark read and open the next unread file
+      note = "<leader>rN", -- normal or visual mode
+      ask = "<leader>ra", -- normal or visual mode
+      explain = "<leader>re", -- Claude's comments on the file
+      about = "<leader>ri",
+    },
+    -- in the file panel. Defaults avoid keys that move the cursor or search,
+    -- so j/k, w/b/e, f/t, n/N, gg/G, / and ? keep working.
+    panel = {
+      open = { "<CR>", "o" }, -- open a file, fold a group, run an action line
+      fold = { "<Tab>", "za" },
+      toggle_read = "x", -- file, group or folder
+      read_next = "X",
+      toggle_order = "s", -- reading order / folders
+      toggle_generated = "i",
+      toggle_hide_read = "r",
+      pick_step = "p", next_step = "]s", prev_step = "[s",
+      explain = "c", -- comment the file under the cursor
+      explain_group = "C", -- comment every file of the group/folder under the cursor
+      about = "a",
+      prepare = "A", stop = "D",
+      overview = "O",
+      quiz = "Q", final_quiz = "gQ",
+      progress = "P", notes = "gn",
+      toggle_comments = "gc",
+      close = "q", help = "g?",
+    },
+    quiz = {
+      choices = "abcdef", -- one key per choice; "" to use only toggle_choice
+      toggle_choice = "<Space>", -- toggle the choice under the cursor
+      check = "<CR>", -- check the answer, or go to the next question once checked
+      answer = "i", -- write an open answer
+      dont_know = "d",
+      next = "J", prev = "K",
+      retry = "r",
+      hint = "gh", explain = "x",
+      overview = "o",
+      refs = { "1", "2", "3", "4" }, -- open the code a question refers to
+      self_correct = "+", self_partial = "~", self_wrong = "-",
+      close = { "q", "<Esc>" },
+    },
+    progress = { open = "<CR>", retry_mistakes = "m", notes = "gn", asks = "A" },
+    float = { close = { "q", "<Esc>" } },
+    input = { submit = "<C-s>", submit_normal = "<CR>", cancel = { "q", "<Esc>" } },
   },
   -- Reading order: the first group whose pattern matches a path wins.
   -- Patterns are Lua patterns. `order` sets the display order.
@@ -108,13 +170,27 @@ local function normalize_project(name, p)
 end
 
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+  opts = opts or {}
+  M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
+  -- Lists are replaced, not merged index by index.
+  if opts.generated then M.options.generated = vim.deepcopy(opts.generated) end
+  if opts.claude and opts.claude.extra_args then M.options.claude.extra_args = vim.deepcopy(opts.claude.extra_args) end
+  local km = opts.keymaps or {}
+  for section, keys in pairs(km) do
+    if type(keys) == "table" and M.defaults.keymaps[section] then
+      for name, lhs in pairs(keys) do M.options.keymaps[section][name] = lhs end
+    end
+  end
+  -- older flat keymaps (keymaps.next_change, ...) belong to keymaps.file
+  for name in pairs(M.defaults.keymaps.file) do
+    if km[name] ~= nil then M.options.keymaps.file[name] = km[name] end
+  end
   -- older option names
-  if opts and opts.auto_explain ~= nil then M.options.ai.comment_on_open = opts.auto_explain end
-  if opts and opts.prefetch_next ~= nil then M.options.ai.prefetch_next = opts.prefetch_next end
+  if opts.auto_explain ~= nil then M.options.ai.comment_on_open = opts.auto_explain end
+  if opts.prefetch_next ~= nil then M.options.ai.prefetch_next = opts.prefetch_next end
   -- `claude.model` alone means "this model for everything"
-  if opts and opts.claude and opts.claude.model and not opts.claude.models then M.options.claude.models = {} end
-  if opts and opts.groups then M.options.groups = opts.groups end
+  if opts.claude and opts.claude.model and not opts.claude.models then M.options.claude.models = {} end
+  if opts.groups then M.options.groups = opts.groups end
   local projects = {}
   for name, p in pairs(M.options.projects or {}) do projects[name] = normalize_project(name, p) end
   M.options.projects = projects
