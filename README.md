@@ -255,3 +255,7 @@ Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each ste
 - `state.json`: read marks, notes, quiz attempts with their history, questions asked to Claude
 - `explain.json`: step overviews and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
 - `quizzes/`: the default place for quiz files
+
+## License
+
+MIT, see [LICENSE](LICENSE).
