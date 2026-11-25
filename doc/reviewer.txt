@@ -69,6 +69,13 @@ branch, so that your LSP and search work on them:
   the reviewed branch at each new review. It is on no branch, so nothing done
   there can affect your branches. |:ReviewClean| removes it.
 
+                                                             *reviewer-deps*
+The hidden checkout has no `node_modules`, so the LSP would miss the types of
+external packages. The plugin installs them there from the lockfile (npm,
+pnpm or yarn), skipping install scripts so no code of the reviewed branch
+runs, and again only when the lockfile changes. Nothing is ever installed in
+your own checkout. See |reviewer-option-deps|.
+
 ==============================================================================
 3. THE BROWSER                                              *reviewer-browser*
 
@@ -103,6 +110,12 @@ ignored, with a message: |:w| only saves read marks, it never touches files.
 (see |reviewer-option-groups|). `g.` also lists unchanged files, dimmed, and
 `gG` shows or hides generated files (|reviewer-option-generated|).
 
+                                                          *reviewer-commits*
+`gl` (or |:ReviewCommits|) lists the branch's commits, oldest first, with
+their files and lines changed. <CR> on a commit reviews that commit alone;
+`-` at its root comes back to the list. Changing a commit's box marks all its
+files read, then |:w|. Commit reviews are not listed in |:ReviewProgress|.
+
 All the keys: |reviewer-keys-browser|. `g?` lists them in the browser.
 
 ==============================================================================
@@ -121,6 +134,12 @@ it was opened (browser, |:edit|, a picker):
 The buffer is read-only (|reviewer-option-readonly|): an edit in the hidden
 checkout would be on no branch, and an edit in your own checkout would change
 your working copy. |:ReviewEdit| unlocks the current file if you need to.
+
+                                                            *reviewer-split*
+Side by side: |:ReviewSplit| (`<leader>rs`) shows the version before the
+change on the left and the file on the right, in Neovim's diff mode
+(|diff-mode|); the inline overlay is off meanwhile. `]f` moves both sides to
+the next file. |reviewer-option-layout| makes it the default.
 
 Keys in reviewed files: |reviewer-keys-file|. `]c`/`[c` move between changes,
 `]f`/`[f` between files in reading order, `-` goes back to the browser on the
@@ -236,6 +255,12 @@ Keys: |reviewer-keys-progress|.
 :ReviewBrowse [{folder}]                                        *:ReviewBrowse*
     Open the browser in the current window, at the root or on {folder}.
 
+:ReviewCommits                                                 *:ReviewCommits*
+    The commits of the branch, to review them one by one (|reviewer-commits|).
+
+:ReviewSplit                                                     *:ReviewSplit*
+    Switch between inline changes and side by side (|reviewer-split|).
+
 :ReviewNext                                                       *:ReviewNext*
 :ReviewPrev                                                       *:ReviewPrev*
 :ReviewNextUnread                                           *:ReviewNextUnread*
@@ -320,6 +345,17 @@ worktree_dir                                  *reviewer-option-worktree_dir*
 readonly                                          *reviewer-option-readonly*
     Reviewed files cannot be changed (|:ReviewEdit| unlocks one).
     Default: `true`.
+
+layout                                              *reviewer-option-layout*
+    `"inline"`: changes drawn in the file. `"split"`: before | after, in
+    Neovim's diff mode. Default: `"inline"`.
+
+deps                                                  *reviewer-option-deps*
+    Dependencies of the hidden checkout (|reviewer-deps|).
+    `install`         `false` to never install. Default: `true`.
+    `ignore_scripts`  skip install scripts. Default: `true`.
+    `cmd`             your own install command, e.g. `{ "npm", "ci" }`.
+                    Default: from the lockfile.
 
 show_comments                                *reviewer-option-show_comments*
     Show Claude's comments above the code. Default: `true`.
@@ -417,6 +453,7 @@ In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
   `<leader>re`     Claude's comments on the file       `explain`
   `<leader>ri`     about the file                      `about`
   `-`              browser on the file's folder        `browse`
+  `<leader>rs`     inline / side by side               `toggle_split`
 
 In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   <CR>           enter a folder / open a file        `open`
@@ -425,6 +462,7 @@ In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   <C-p>          preview                             `preview`
   `-` `_`          parent folder / root                `parent` `root`
   `gs`             folders / reading order             `toggle_view`
+  `gl`             commits of the branch               `commits`
   `g.`             show unchanged files                `toggle_unchanged`
   `gG`             show generated files                `toggle_generated`
   <C-l>          refresh                             `refresh`

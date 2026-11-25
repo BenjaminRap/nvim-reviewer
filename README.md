@@ -6,6 +6,8 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 
 - **Full file with its changes.** Each file opens as a normal buffer, read-only by default. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
 - **A review prepared in advance.** `:ReviewPrepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
+- **Side by side, if you prefer.** `:ReviewSplit` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
+- **Commit by commit.** `gl` in the browser lists the branch's commits; each one can be reviewed on its own.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
@@ -70,6 +72,8 @@ The files of a review must exist on disk at the version of the reviewed branch, 
 
 `:ReviewClean` removes the hidden checkout; your progress is kept.
 
+**Dependencies for the LSP.** The hidden checkout has no `node_modules`, so your LSP would not find the types of external packages. The plugin installs them there from the lockfile (`npm ci`, `pnpm install` or `yarn install`), with install scripts skipped so no code of the reviewed branch runs, and again only when the lockfile changes. It never installs anything in your own checkout. This can take a few minutes and some disk space; `deps = { install = false }` turns it off.
+
 Reviewed files are read-only by default (`readonly = true`). An edit in the hidden checkout would be on no branch and lost at the next review, and an edit in your own checkout would change your working copy, while the review overlay would stop lining up. Fix what you find on the branch itself. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files the review does not change stay editable.
 
 ## Commands
@@ -78,6 +82,8 @@ Reviewed files are read-only by default (`readonly = true`). An edit in the hidd
 |---|---|
 | `:Review [base] [branch]` | Start a review (see above) and open the browser |
 | `:ReviewBrowse [folder]` | Open the browser (optionally on a folder) |
+| `:ReviewCommits` | The branch's commits, to review them one by one |
+| `:ReviewSplit` | Switch between inline changes and side by side |
 | `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the files of the review |
 | `:ReviewEdit` | Allow changes in the current reviewed file (read-only by default) |
 | `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
@@ -151,6 +157,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<leader>re` | Write Claude's comments (asks before writing them again) |
 | `<leader>ri` | About the file: summary, what changed, commits |
 | `-` | Open the browser on the file's folder |
+| `<leader>rs` | Inline changes / side by side |
 
 **In the browser** (`keymaps.browser`). Its text is editable for read marks, so every editing and moving key works as in any buffer; the plugin uses oil's keys and `g` keys:
 
@@ -161,6 +168,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<C-p>` | Preview, staying in the browser |
 | `-` / `_` | Parent folder / root of the review |
 | `gs` | One folder at a time / all files in reading order |
+| `gl` | The branch's commits (`<CR>` reviews one, `-` comes back) |
 | `g.` / `gG` | Show or hide unchanged files / generated files |
 | `<C-l>` | Refresh |
 | `gC` / `gF` | Claude's comments on the file / on every file of the folder |
@@ -213,6 +221,10 @@ require("reviewer").setup({
   show_comments = true,         -- Claude's comments above the code
   show_removed = true,          -- removed lines shown in place, in red
   readonly = true,              -- reviewed files cannot be changed (:ReviewEdit unlocks one)
+  layout = "inline",            -- or "split": before | after, in Neovim's diff mode
+  deps = {                      -- dependencies of the hidden checkout, for the LSP
+    install = true, ignore_scripts = true, cmd = nil,
+  },
   hide_generated = true,
   comment_width = 100,          -- maximum width of a comment box
   browser = {
@@ -234,10 +246,11 @@ require("reviewer").setup({
     -- a string, a list of strings, or false to disable; only what you set changes
     file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
              toggle_read = "<leader>rr", read_next = "<leader>rn",
-             ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-" },
+             ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-",
+             toggle_split = "<leader>rs" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
-                toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
+                toggle_view = "gs", commits = "gl", toggle_unchanged = "g.", toggle_generated = "gG",
                 explain = "gC", explain_folder = "gF", about = "gK",
                 prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
                 progress = "gL", new_review = "gB", help = "g?" },
@@ -345,6 +358,10 @@ Quizzes are JSON files named `quiz-<base>..<branch>.json` in the repository's `q
 - `state.json`: read marks, quiz attempts with their history, questions asked to Claude
 - `explain.json`: overviews of each review and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
 - `quizzes/`: the default place for quiz files
+
+## Development
+
+`make test` (or `tests/run.sh`) runs the tests headless. They build a small git repository with a fake remote and check the plugin against it: branches and statuses, the hidden checkout, the browser and its read marks, the overlay, side by side, commits, quizzes and saved data. Claude is replaced by a fake, so the tests use no Claude usage. `SPEC=browser tests/run.sh` runs one file.
 
 ## License
 
