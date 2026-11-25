@@ -93,10 +93,10 @@ Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
 - **When you start `:Review`,** the plugin shows what is already prepared for the current step and offers to prepare it: the whole step, only the overview, every step, or not now. With `ai.on_start` you can always prepare, prepare everything, or never ask.
 - **Action lines at the top of the panel** (press `<CR>` on a line, or its key):
-  - `A` prepares the step, and `S` stops it.
+  - `A` prepares the step, and `D` stops it.
   - `O` opens the step overview, writing it first if needed.
-  - `Q` and `F` open the step quiz and the final quiz, and offer to write them if they don't exist yet.
-  - `e` comments the current file.
+  - `Q` and `gQ` open the step quiz and the final quiz, and offer to write them if they don't exist yet.
+  - `c` comments the current file.
 - **In a reviewed file,** a hint on the first line tells you when it has no comments yet. `<leader>re` writes them, and asks before writing them again.
 - **Automatic comments on open:** set `ai.comment_on_open = true`, plus `ai.prefetch_next` to also comment the next unread file in the background.
 - **Your questions and quiz hints** run when you ask them. Open answers are graded by Claude unless `ai.grade_open_answers = false`.
@@ -117,9 +117,9 @@ Details:
 - **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.
 - **`:ReviewPrepare all`** prepares every step in turn, then the final quiz.
 - **`:ReviewPrepare final`** writes the quiz on the whole stack from the step overviews and the final code.
-- **In the panel:** `E` on a group, folder or file comments just those files, and `O` shows the overview.
+- **In the panel:** `C` on a group, folder or file comments just those files, and `O` shows the overview.
 
-Without preparation, you can comment files one at a time (`e` in the panel, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
+Without preparation, you can comment files one at a time (`c` in the panel, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
 
 ### What Claude sees
 
@@ -132,7 +132,9 @@ Without preparation, you can comment files one at a time (`e` in the panel, `<le
 
 ## Keys
 
-In a reviewed file (buffer-local, configurable with `keymaps`, set one to `false` to disable it):
+Every key can be changed or disabled (see [Options](#options)). The panel and quiz defaults leave the keys that move the cursor or search alone (`j` `k` `w` `b` `e` `f` `t` `n` `N` `gg` `G` `/` `?`), so you move in them as in any buffer.
+
+**In a reviewed file** (buffer-local, `keymaps.file`):
 
 | Key | Action |
 |---|---|
@@ -143,10 +145,32 @@ In a reviewed file (buffer-local, configurable with `keymaps`, set one to `false
 | `<leader>rN` | Add a note (normal or visual) |
 | `<leader>ra` | Ask Claude (normal or visual) |
 | `<leader>re` | Write Claude's comments (asks before writing them again) |
+| `<leader>ri` | About the file: summary, what changed, commits |
 
-In the panel: `<CR>` open a file or run an action line, `A` prepare the step, `S` stop, `O` overview, `Q` step quiz, `F` final quiz, `x` toggle read (file, group or folder), `<Tab>` fold, `n` read & next, `t` reading order or folders, `g` generated files, `h` hide read files, `s` / `]s` / `[s` steps, `e` comment the file, `E` comment every file of the group or folder, `a` about, `P` progress, `N` notes, `C` comments, `q` close, `?` help.
+**In the panel** (`keymaps.panel`):
 
-In a quiz: `a`–`f` pick, `<CR>` check, `i` write an open answer, `d` don't know, `H` hint, `x` ask Claude why, `1`–`4` open the code a question refers to, `n` / `p` next / previous, `r` retry, `o` results by level, `+` `~` `-` grade yourself when Claude cannot, `q` close (`:ReviewQuiz` resumes).
+| Key | Action |
+|---|---|
+| `<CR>` `o` | Open a file, fold a group, run an action line |
+| `<Tab>` `za` | Fold or unfold a group or folder |
+| `x` | Toggle read (file, group or folder) |
+| `X` | Mark read and open the next unread file |
+| `s` | Reading order / folders |
+| `i` | Show or hide generated files |
+| `r` | Show or hide read files |
+| `p` / `]s` / `[s` | Choose the step / next / previous |
+| `c` / `C` | Comment the file / every file of the group or folder |
+| `a` | About the file under the cursor |
+| `A` / `D` | Prepare the step / stop |
+| `O` | Step overview |
+| `Q` / `gQ` | Step quiz / final quiz |
+| `P` / `gn` | Progress / notes |
+| `gc` | Show or hide Claude's comments |
+| `q` / `g?` | Close / help |
+
+**In a quiz** (`keymaps.quiz`): `a`–`f` pick a choice, or `<Space>` on a choice line; `<CR>` check, then next; `i` write an open answer; `d` don't know; `gh` hint; `x` ask Claude why; `1`–`4` open the code a question refers to; `J` / `K` next / previous; `r` retry; `o` results by level; `+` `~` `-` grade yourself when Claude cannot; `q` close (`:ReviewQuiz` resumes).
+
+**In floats** (`keymaps.float`, `keymaps.input`, `keymaps.progress`): `q` or `<Esc>` closes. In an input box, `<C-s>` (or `<CR>` in normal mode) saves and `q` / `<Esc>` cancels.
 
 ## Options
 
@@ -177,10 +201,50 @@ require("reviewer").setup({
     offer_missing_quiz = true,  -- offer to write a quiz you open that does not exist yet
     grade_open_answers = true,  -- false: you grade open answers yourself
   },
-  show_comments = true,
+  show_comments = true,         -- Claude's comments above the code
+  show_removed = true,          -- removed lines shown in place, in red
   hide_generated = true,
   order = "reading",            -- or "tree"
-  panel = { width = 48 },
+  comment_width = 100,          -- maximum width of a comment box
+  panel = {
+    position = "left",          -- or "right"
+    width = 48,
+    icons = true,               -- mini.icons or nvim-web-devicons, when installed
+    show_actions = true,        -- action lines at the top
+    show_file_summary = true,   -- summary of the current file at the bottom
+  },
+  float = {
+    border = "rounded",         -- any 'winborder' style
+    width = 0.8, height = 0.8,  -- fraction of the editor, or columns/lines when > 1
+    text_width = 96,            -- wrap width of text in floats
+  },
+  symbols = {
+    read = "x", unread = " ", partly_read = "-",
+    fold_open = "▾", fold_closed = "▸",
+    added = "+", removed = "-", removed_prefix = "- ",
+    comment = "✦", pending = "…",
+    note = "●", question = "?", issue = "!", answer = "✦",
+    action = "▶", stop = "■",
+  },
+  keymaps = {
+    -- a string, a list of strings, or false to disable; only what you set changes
+    file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
+             toggle_read = "<leader>rr", read_next = "<leader>rn", note = "<leader>rN",
+             ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri" },
+    panel = { open = { "<CR>", "o" }, fold = { "<Tab>", "za" }, toggle_read = "x", read_next = "X",
+              toggle_order = "s", toggle_generated = "i", toggle_hide_read = "r",
+              pick_step = "p", next_step = "]s", prev_step = "[s",
+              explain = "c", explain_group = "C", about = "a", prepare = "A", stop = "D",
+              overview = "O", quiz = "Q", final_quiz = "gQ", progress = "P", notes = "gn",
+              toggle_comments = "gc", close = "q", help = "g?" },
+    quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
+             dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
+             overview = "o", refs = { "1", "2", "3", "4" },
+             self_correct = "+", self_partial = "~", self_wrong = "-", close = { "q", "<Esc>" } },
+    progress = { open = "<CR>", retry_mistakes = "m", notes = "gn", asks = "A" },
+    float = { close = { "q", "<Esc>" } },
+    input = { submit = "<C-s>", submit_normal = "<CR>", cancel = { "q", "<Esc>" } },
+  },
   generated = { "package%-lock%.json$", "yarn%.lock$", "pnpm%-lock%.yaml$" },
   groups = {                    -- reading order; first matching group wins, `order` sorts them
     { label = "Tests", order = 90, patterns = { "/tests?/", "%.test%." } },
@@ -211,7 +275,33 @@ Values are aliases accepted by `claude --model` (`opus`, `sonnet`, `haiku`) or f
 - **One model for everything:** set `claude.model` without `models`.
 - **If a model is busy or not on your plan,** `fallback_model` is used instead.
 
-Highlight groups (linked by default, override them in your colorscheme): `ReviewerAdd`, `ReviewerDelete`, `ReviewerComment`, `ReviewerNote`, `ReviewerQuestion`, `ReviewerIssue`, `ReviewerCurrent`, `ReviewerRead`.
+For example, to keep the defaults but put the panel on the right, use `<Space>` to tick files and disable the letter keys in quizzes:
+
+```lua
+opts = {
+  panel = { position = "right" },
+  keymaps = {
+    panel = { toggle_read = "<Space>" },
+    quiz = { choices = "" }, -- pick with <Space> on the choice line instead
+  },
+}
+```
+
+### Highlight groups
+
+Every colour comes from a highlight group linked to a standard one, so the plugin follows your colorscheme. Override any of them with `vim.api.nvim_set_hl(0, "ReviewerAdd", { ... })`.
+
+| Group | Default link | Used for |
+|---|---|---|
+| `ReviewerAdd` / `ReviewerAddSign` | `DiffAdd` / `Added` | Added lines and their sign |
+| `ReviewerDelete` / `ReviewerDeleteSign` | `DiffDelete` / `Removed` | Removed lines and their sign |
+| `ReviewerComment` / `ReviewerCommentTitle` | `DiagnosticVirtualTextInfo` / `DiagnosticInfo` | Claude's comments |
+| `ReviewerNote` / `ReviewerQuestion` / `ReviewerIssue` | `DiagnosticVirtualText{Warn,Hint,Error}` | Notes by kind |
+| `ReviewerHeader` / `ReviewerGroup` | `Title` | Panel title and groups |
+| `ReviewerAction` | `Function` | Panel action lines |
+| `ReviewerRead` / `ReviewerDim` | `Comment` | Read files, secondary text |
+| `ReviewerCurrent` | `CursorLine` | The file you are on |
+| `ReviewerOk` / `ReviewerPartial` / `ReviewerBad` | `DiagnosticOk` / `Warn` / `Error` | Results and warnings |
 
 ## Quiz files
 
