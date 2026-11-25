@@ -96,6 +96,27 @@ local function folder_entries(dir)
   return list
 end
 
+-- The commits of the branch, oldest first (first parent only).
+local function commit_entries()
+  local out = git.run({ "log", "--reverse", "--first-parent", "--format=%h%x1f%s", core.step.base_ref .. ".." .. core.step.head_ref }, core.project.root) or ""
+  local list = {}
+  for _, l in ipairs(vim.split(out, "\n", { trimempty = true })) do
+    local h, subject = l:match("^(.-)\31(.*)$")
+    local sub = h and core.review(core.project, h .. "^", h)
+    if sub then
+      local paths, add, del = {}, 0, 0
+      for _, f in ipairs(git.changed_files(core.project, sub)) do
+        if not f.generated then
+          paths[#paths + 1] = f.path
+          add, del = add + f.add, del + f.del
+        end
+      end
+      list[#list + 1] = { kind = "commit", hash = h, subject = subject, review = sub, paths = paths, add = add, del = del }
+    end
+  end
+  return list
+end
+
 -- All files in reading order, under group headers.
 local function reading_entries()
   local list, groups, order = {}, {}, {}
@@ -122,7 +143,7 @@ end
 
 local function winbar_text(info)
   local read, total = core.reviewable(core.step)
-  local where = info.view == "reading" and "reading order" or ((info.dir == "" and "" or info.dir .. "/"))
+  local where = info.view == "reading" and "reading order" or info.view == "commits" and "commits" or ((info.dir == "" and "" or info.dir .. "/"))
   local parts = { core.step.label, where ~= "" and where or "/", ("%d/%d read"):format(read, total) }
   local ps = require("reviewer.prepare").status(core.step.id)
   if ps then parts[#parts + 1] = ps end
@@ -142,7 +163,7 @@ function M.render_buf(buf, force)
   local info = M.bufs[buf]
   if not info or not vim.api.nvim_buf_is_valid(buf) or not core.step then return end
   if vim.bo[buf].modified and not force then return set_winbar(buf) end
-  local entries = info.view == "reading" and reading_entries() or folder_entries(info.dir)
+  local entries = info.view == "reading" and reading_entries() or info.view == "commits" and commit_entries() or folder_entries(info.dir)
   local cur = core.current and core.current.step.id == core.step.id and core.current.file.path or nil
   local lines, marks, items = {}, {}, {}
   -- keep the cursor on the same entry
@@ -177,6 +198,18 @@ function M.render_buf(buf, force)
       push(("  %d/%d"):format(done, #e.paths), "ReviewerDim")
       if done == #e.paths then hls[#hls + 1] = { #prefix, #prefix + #text, "ReviewerRead" } end
       e.key = e.kind .. ":" .. (e.path or e.name)
+    elseif e.kind == "commit" then
+      local done = 0
+      for _, p in ipairs(e.paths) do if state.is_read(core.project, e.review.id, p) then done = done + 1 end end
+      local mark = done == 0 and sym("unread") or (done == #e.paths and sym("read") or sym("partly_read"))
+      e.mark = mark
+      push("[" .. mark .. "] ")
+      push(e.hash .. " ", "ReviewerDim")
+      push(e.subject, done == #e.paths and #e.paths > 0 and "ReviewerRead" or nil)
+      push(("  %d file%s"):format(#e.paths, #e.paths == 1 and "" or "s"), "ReviewerDim")
+      push("  +" .. e.add, "ReviewerAddSign")
+      push(" −" .. e.del, "ReviewerDeleteSign")
+      e.key = "commit:" .. e.hash
     elseif e.kind == "file" then
       local f = e.file
       local r = core.is_read(f.path)
@@ -269,14 +302,22 @@ function M.write(buf)
       if mark ~= it.mark and mark ~= sym("partly_read") then
         vim.list_extend(is_unread(mark) and to_unread or to_read, it.paths)
       end
+    elseif it and it.kind == "commit" then
+      if mark ~= it.mark and mark ~= sym("partly_read") then
+        state.set_read(core.project, it.review.id, it.paths, not is_unread(mark))
+        table.insert(is_unread(mark) and to_unread or to_read, it.hash)
+      end
     elseif vim.trim(l) ~= "" and not l:match("^/%d+ ") then
       ignored = ignored + 1
     end
   end
-  if #to_read > 0 then state.set_read(core.project, core.step.id, to_read, true) end
-  if #to_unread > 0 then state.set_read(core.project, core.step.id, to_unread, false) end
+  if info.view ~= "commits" then
+    if #to_read > 0 then state.set_read(core.project, core.step.id, to_read, true) end
+    if #to_unread > 0 then state.set_read(core.project, core.step.id, to_unread, false) end
+  end
   vim.bo[buf].modified = false
-  local msg = ("%d marked read, %d unread"):format(#to_read, #to_unread)
+  local what = info.view == "commits" and "commit(s)" or "file(s)"
+  local msg = ("%d %s marked read, %d unread"):format(#to_read, what, #to_unread)
   if ignored > 0 then msg = msg .. (" · %d edited line(s) ignored (only [ ] / [x] is saved)"):format(ignored) end
   ui.notify(msg)
   M.render_buf(buf, true)
@@ -300,6 +341,12 @@ local function open_item(buf, how)
     return M.open({ dir = it.path, view = "folders" })
   end
   if it.kind == "group" then return end
+  if it.kind == "commit" then
+    if how then return end
+    local parent = core.step.id
+    require("reviewer").start_review(it.hash .. "^", it.hash, { label = ("commit %s: %s"):format(it.hash, it.subject), parent = parent })
+    return
+  end
   local prev_win = vim.api.nvim_get_current_win()
   if how == "vsplit" or how == "preview" then vim.cmd("vsplit")
   elseif how == "split" then vim.cmd("split")
@@ -323,6 +370,7 @@ local function help_lines()
     { k.open_tab, "open in a new tab" }, { k.preview, "preview, staying here" },
     { k.parent, "parent folder" }, { k.root, "root of the review" },
     { k.toggle_view, "folders / all files in reading order" },
+    { k.commits, "commits of the branch (- goes back)" },
     { k.toggle_unchanged, "show or hide unchanged files" },
     { k.toggle_generated, "show or hide generated files" },
     { k.refresh, "refresh" },
@@ -352,12 +400,19 @@ local function setup_buffer(buf)
   map(k.preview, function() open_item(buf, "preview") end, "preview")
   map(k.parent, function()
     local info = M.bufs[buf]
-    if info.view == "reading" then return M.open({ dir = "", view = "folders" }) end
-    if info.dir == "" then return ui.notify("already at the root of the review") end
+    if info.view == "reading" or info.view == "commits" then return M.open({ dir = "", view = "folders" }) end
+    if info.dir == "" then
+      if core.step.parent then return M.commits() end
+      return ui.notify("already at the root of the review")
+    end
     local parent = vim.fs.dirname(info.dir)
     M.open({ dir = parent == "." and "" or parent, view = "folders", focus = "folder:" .. info.dir })
   end, "parent folder")
   map(k.root, function() M.open({ dir = "", view = "folders" }) end, "root")
+  map(k.commits, function()
+    if M.bufs[buf].view == "commits" then return M.open({ dir = "", view = "folders" }) end
+    M.commits()
+  end, "commits of the branch")
   map(k.toggle_view, function()
     local info = M.bufs[buf]
     M.open({ dir = info.dir, view = info.view == "reading" and "folders" or "reading" })
@@ -411,7 +466,7 @@ end
 
 ------------------------------------------------------------------------ open
 local function buffer_for(view, dir)
-  local name = ("reviewer://%s/%s/%s"):format(core.project.name, core.step.id, view == "reading" and "~reading" or (dir == "" and "" or dir .. "/"))
+  local name = ("reviewer://%s/%s/%s"):format(core.project.name, core.step.id, view == "reading" and "~reading" or view == "commits" and "~commits" or (dir == "" and "" or dir .. "/"))
   local buf = vim.fn.bufnr(name)
   if buf == -1 or not M.bufs[buf] then
     if buf == -1 then
@@ -435,8 +490,8 @@ function M.open(opts)
   init_flags()
   opts = opts or {}
   local view = opts.view or M.view
-  M.view = view
-  local dir = view == "reading" and "" or (opts.dir or "")
+  if view ~= "commits" then M.view = view end
+  local dir = view ~= "folders" and "" or (opts.dir or "")
   local buf = buffer_for(view, dir)
   M.bufs[buf].focus = opts.focus
   vim.api.nvim_win_set_buf(0, buf)
@@ -452,6 +507,18 @@ function M.open_here()
 end
 
 function M.is_browser(buf) return M.bufs[buf] ~= nil end
+
+-- The commits of the branch. From the review of one commit, go back to the
+-- branch's list with the cursor on that commit.
+function M.commits()
+  if not core.step then return end
+  if core.step.parent then
+    local hash = core.step.branch
+    if not require("reviewer").start_review(core.step.parent) then return end
+    return M.open({ view = "commits", focus = "commit:" .. hash })
+  end
+  M.open({ view = "commits" })
+end
 
 -- Forget every browser buffer (when the review changes).
 function M.wipe()

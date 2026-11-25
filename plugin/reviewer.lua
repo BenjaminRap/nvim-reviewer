@@ -18,6 +18,8 @@ cmd("Review", function(o) require("reviewer").start(o.fargs) end, {
     return vim.tbl_filter(function(b) return b:find(lead, 1, true) == 1 end, require("reviewer").branches(repo))
   end,
 })
+cmd("ReviewSplit", function() c().split() end, { desc = "Switch between inline changes and side by side" })
+cmd("ReviewCommits", function() c().commits() end, { desc = "List the commits of the branch, to review them one by one" })
 cmd("ReviewBrowse", function(o) c().browse(o.args) end, { nargs = "?", desc = "Open the review browser (optionally on a folder)" })
 cmd("ReviewNext", function() c().next() end, { desc = "Open the next file of the step" })
 cmd("ReviewPrev", function() c().prev() end, { desc = "Open the previous file of the step" })

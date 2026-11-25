@@ -51,7 +51,9 @@ function M.review(repo, base, head)
 end
 
 -- Start (or switch to) a review in the repository of the current directory.
-function M.start(base, head)
+-- opts: { label = "...", parent = "<id of the review it belongs to>" } (commit reviews)
+function M.start(base, head, opts)
+  opts = opts or {}
   local repo = M.repo_here()
   if not repo then
     ui.notify("not inside a git repository", vim.log.levels.ERROR)
@@ -62,17 +64,21 @@ function M.start(base, head)
     ui.notify(err, vim.log.levels.ERROR)
     return nil
   end
+  if opts.label then review.label = opts.label end
+  review.parent = opts.parent
   local switching = M.step and M.step.id ~= review.id
   M.project, M.step = repo, review
   if switching then
     M.forget_buffers()
     require("reviewer.browser").wipe()
   end
-  local st = state.get(repo)
-  st.ui.last = { base = review.base_branch, head = review.branch }
-  st.reviews = st.reviews or {}
-  st.reviews[review.id] = { base = review.base_branch, head = review.branch, at = state.now() }
-  state.save(repo)
+  if not review.parent then -- commit reviews are not listed as reviews of their own
+    local st = state.get(repo)
+    st.ui.last = { base = review.base_branch, head = review.branch }
+    st.reviews = st.reviews or {}
+    st.reviews[review.id] = { base = review.base_branch, head = review.branch, at = state.now() }
+    state.save(repo)
+  end
   return review
 end
 

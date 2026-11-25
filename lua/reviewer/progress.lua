@@ -23,7 +23,7 @@ function M.open()
   for id in pairs(st.read) do ids[id] = true end
   for id in pairs(state.explain(core.project).steps or {}) do ids[id] = true end
   for _, id in ipairs(quiz.ids()) do ids[id] = true end
-  local list = vim.tbl_keys(ids)
+  local list = vim.tbl_filter(function(id) return not id:find("%^%.%.") end, vim.tbl_keys(ids))
   table.sort(list, function(a, b)
     local ra, rb = (st.reviews or {})[a], (st.reviews or {})[b]
     return ((ra and ra.at) or "") > ((rb and rb.at) or "") or (((ra and ra.at) or "") == ((rb and rb.at) or "") and a < b)

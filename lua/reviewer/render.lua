@@ -85,7 +85,10 @@ function M.draw(buf)
     end
   end
 
-  if ctx.deleted then
+  local split = require("reviewer.split").active()
+  if split and not ctx.deleted then
+    -- side by side: Neovim's diff mode shows the changes
+  elseif ctx.deleted then
     for l = 1, nlines do
       vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = sym("removed"), sign_hl_group = "ReviewerDeleteSign" })
     end

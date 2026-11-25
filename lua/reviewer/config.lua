@@ -54,6 +54,7 @@ M.defaults = {
   },
   show_comments = true, -- Claude's comments above the code
   show_removed = true, -- removed lines shown in place, in red
+  layout = "inline", -- "inline" (changes drawn in the file) or "split" (before | after, Neovim's diff mode)
   -- Reviewed files cannot be changed: they may be in the hidden checkout (an edit
   -- there is on no branch) or in your own checkout (an edit changes your working
   -- copy). :ReviewEdit unlocks one buffer.
@@ -89,6 +90,7 @@ M.defaults = {
       explain = "<leader>re", -- Claude's comments on the file
       about = "<leader>ri",
       browse = "-", -- open the review browser on the file's folder (like oil's "-")
+      toggle_split = "<leader>rs", -- inline changes / side by side
     },
     -- in the review browser. Its text is editable (read marks), so defaults
     -- leave every editing and moving key alone and use oil-like keys and g-keys.
@@ -96,6 +98,7 @@ M.defaults = {
       open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
       preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
       toggle_view = "gs", -- folders / all files in reading order
+      commits = "gl", -- the branch's commits, to review them one by one
       toggle_unchanged = "g.", toggle_generated = "gG",
       explain = "gC", -- Claude's comments on the file under the cursor
       explain_folder = "gF", -- comment every file of the folder under the cursor

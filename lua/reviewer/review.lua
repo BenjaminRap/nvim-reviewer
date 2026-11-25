@@ -43,6 +43,7 @@ local function set_keymaps(buf)
   keys.map(buf, "n", km.about, function() M.about() end, "about this file")
   keys.map(buf, { "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, "ask Claude")
   keys.map(buf, "n", km.browse, function() require("reviewer.browser").open_here() end, "review browser on this folder")
+  keys.map(buf, "n", km.toggle_split, function() require("reviewer.split").toggle() end, "inline changes / side by side")
 end
 
 function M.attach(buf, ctx)
@@ -118,6 +119,8 @@ function M.open(step, f, line, win)
     vim.cmd.edit(vim.fn.fnameescape(dir .. "/" .. f.path))
     M.attach(vim.api.nvim_get_current_buf())
   end
+  local opened = core.buffers[vim.api.nvim_win_get_buf(win)]
+  if opened then require("reviewer.split").follow(opened, win) end
   if line then pcall(vim.api.nvim_win_set_cursor, win, { line, 0 }) ; vim.cmd("normal! zz") end
   local st = state.get(project)
   st.ui.last = st.ui.last or {}
@@ -153,7 +156,11 @@ function M.move(delta, unread_only)
     local i = ((idx - 1 + delta * k) % n) + 1
     if idx == 0 then i = delta > 0 and k or (n - k + 1) end
     local f = files[i]
-    if not unread_only or not core.is_read(f.path, step) then return M.open(step, f) end
+    if not unread_only or not core.is_read(f.path, step) then
+      -- from a reviewed file, open the next one in the same window
+      local here = core.buffers[vim.api.nvim_get_current_buf()] and vim.api.nvim_get_current_win() or nil
+      return M.open(step, f, nil, here)
+    end
   end
   ui.notify("every file of " .. step.label .. " is read. Time for the quiz: :ReviewQuiz")
 end

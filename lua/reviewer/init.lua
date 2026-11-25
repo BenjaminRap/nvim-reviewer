@@ -20,7 +20,9 @@ function M.setup(opts)
       if not core.project then return end
       local review = require("reviewer.review")
       local win = vim.api.nvim_get_current_win()
-      if vim.api.nvim_win_get_config(win).relative == "" and not require("reviewer.browser").is_browser(ev.buf) then review.last_win = win end
+      -- the main window shows files, not the browser or the "before" side of a split
+      if vim.api.nvim_win_get_config(win).relative == "" and not vim.api.nvim_buf_get_name(ev.buf):match("^reviewer://") then review.last_win = win end
+      require("reviewer.split").check(win, ev.buf)
       review.attach(ev.buf)
     end,
   })
@@ -57,13 +59,16 @@ local function open_review()
     if vim.api.nvim_buf_is_loaded(buf) then require("reviewer.review").attach(buf) end
   end
   require("reviewer.core").changed()
-  vim.schedule(function() require("reviewer.prepare").offer_on_start() end)
+  if not require("reviewer.core").step.parent then
+    vim.schedule(function() require("reviewer.prepare").offer_on_start() end)
+  end
 end
 
 -- Start a review from two branch names, or from an id "base..head".
-function M.start_review(base, head)
+-- opts: { label, parent } for the review of one commit of a branch.
+function M.start_review(base, head, opts)
   ensure_setup()
-  if not require("reviewer.core").start(base, head) then return nil end
+  if not require("reviewer.core").start(base, head, opts) then return nil end
   open_review()
   return require("reviewer.core").step
 end
@@ -143,6 +148,8 @@ local need_project = need_review
 
 M.commands = {
   browse = function(dir) if need_project() then require("reviewer.browser").open({ dir = dir ~= "" and dir or nil }) end end,
+  split = function() if need_project() then require("reviewer.split").toggle() end end,
+  commits = function() if need_project() then require("reviewer.browser").commits() end end,
   next = function() if need_project() then require("reviewer.review").move(1) end end,
   prev = function() if need_project() then require("reviewer.review").move(-1) end end,
   next_unread = function() if need_project() then require("reviewer.review").move(1, true) end end,
