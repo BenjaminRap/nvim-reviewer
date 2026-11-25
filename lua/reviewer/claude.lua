@@ -74,7 +74,7 @@ local function start(job)
   end
 end
 
--- opts: { tools = "", cwd = dir, json = bool, tag = string, use = "overview"|"comments"|"quiz"|"final"|"ask"|"grade" }
+-- opts: { tools = "", cwd = dir, json = bool, tag = string, use = "overview"|"comments"|"quiz"|"ask"|"grade" }
 -- cb(err, result, meta)
 -- meta.cost is the call's cost in USD as reported by Claude Code.
 function M.run(prompt, opts, cb)

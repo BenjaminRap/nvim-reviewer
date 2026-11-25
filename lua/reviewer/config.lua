@@ -15,22 +15,21 @@ M.defaults = {
     -- Model per use: an alias ("opus", "sonnet", "haiku") or a full model name.
     -- false or nil uses `model` below, then your Claude Code default.
     models = {
-      overview = "opus", -- one call per step; its summary is the context for everything else
+      overview = "opus", -- one call per review; its summary is the context for everything else
       comments = "sonnet", -- most of the calls (every file), so the cheaper model
-      quiz = "opus", -- one call per step; accuracy matters most
-      final = "opus", -- the final quiz on the whole stack
+      quiz = "opus", -- one call per review; accuracy matters most
       ask = "opus", -- your questions and quiz hints
       grade = "sonnet", -- open answers, checked against a reference answer
     },
     model = nil, -- used for any use without its own model; nil = Claude Code's default
     fallback_model = "sonnet", -- used if the chosen model is busy or not available on your plan
-    -- tools Claude may use; "" means none. Asking runs in the step's folder,
-    -- so read-only tools let Claude open any file of the repo at that step.
+    -- tools Claude may use; "" means none. Claude runs in the checkout of the
+    -- reviewed branch, so read-only tools let it open any file of the repo.
     explain_tools = "Read,Grep,Glob",
     ask_tools = "Read,Grep,Glob",
     grade_tools = "",
     prepare_tools = "Read,Grep,Glob",
-    batch_chars = 60000, -- size of one batch of files sent together when preparing a step
+    batch_chars = 60000, -- size of one batch of files sent together when preparing a review
     batch_files = 6,
     extra_args = {},
     timeout_ms = 10 * 60 * 1000,
@@ -53,7 +52,6 @@ M.defaults = {
   -- copy). :ReviewEdit unlocks one buffer.
   readonly = true,
   hide_generated = true,
-  order = "reading", -- "reading" (groups) or "tree" (folders)
   comment_width = 100, -- maximum width of a comment box
   browser = {
     view = "folders", -- "folders" (one folder at a time, like oil) or "reading" (all files in reading order)
@@ -67,12 +65,10 @@ M.defaults = {
     text_width = 96, -- wrap width of text in floats
   },
   symbols = {
-    read = "x", unread = " ", partly_read = "-",
-    fold_open = "▾", fold_closed = "▸",
+    read = "x", unread = " ", partly_read = "-", -- browser checkboxes
     added = "+", removed = "-", -- signs in reviewed files
     removed_prefix = "- ", -- before each removed line shown in place
     comment = "✦", pending = "…",
-    action = "▶", stop = "■",
   },
   -- Every key can be a string, a list of strings, or false to disable it.
   keymaps = {

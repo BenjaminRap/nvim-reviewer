@@ -123,7 +123,7 @@ function M.ordered(step, opts)
   for _, f in ipairs(M.files(step)) do
     if not (opts.hide_generated and f.generated) then files[#files + 1] = f end
   end
-  if (opts.order or config.options.order) == "reading" then
+  if (opts.order or "reading") == "reading" then
     table.sort(files, function(a, b)
       local ga, gb = M.group_of(a), M.group_of(b)
       if ga.order ~= gb.order then return ga.order < gb.order end
