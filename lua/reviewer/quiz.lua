@@ -47,10 +47,7 @@ function M.reload() quizzes = nil ; return load() end
 
 function M.ids()
   local ids = vim.tbl_keys(load())
-  table.sort(ids, function(a, b)
-    if a == "final" then return false elseif b == "final" then return true end
-    return a < b
-  end)
+  table.sort(ids)
   return ids
 end
 
@@ -79,14 +76,13 @@ end
 
 local function title(quiz_id)
   if quiz_id == "mistakes" then return "Your mistakes, all quizzes" end
-  local q = load()[quiz_id]
-  return q and q.title and (quiz_id:match("^step") and ("Step " .. quiz_id:sub(5) .. " quiz: " .. q.title) or q.title) or quiz_id
+  return "Quiz: " .. (quiz_id or ""):gsub("%.%.", " → ")
 end
 
--- Step whose code a quiz is about (its refs are at that step's head).
+-- The review a quiz is about (its refs are at that review's head branch).
 local function quiz_step(quiz_id)
-  local n = tonumber((quiz_id or ""):match("^step(%d+)$"))
-  return core.project.steps[n or #core.project.steps]
+  if core.step and quiz_id == core.step.id then return core.step end
+  return core.review(core.project, quiz_id) or core.step
 end
 
 --------------------------------------------------------------------------- render
@@ -360,9 +356,12 @@ function M.open_ref(i)
   local step = quiz_step(it.quiz)
   M.close()
   local review = require("reviewer.review")
+  if core.step.id ~= step.id then
+    if not require("reviewer").start_review(step.id) then return end
+    step = core.step
+  end
   local f = git.find_file(core.project, step, ref.path)
   if f then
-    if core.step.id ~= step.id then core.set_step(step.id) end
     review.open(step, f, ref.line)
   else
     local dir, err = git.step_dir(core.project, step, true)
@@ -403,7 +402,8 @@ function M.ask(kind)
     or (answered and s.result.verdict == "correct" and "Explain this answer in more depth, with the code."
       or "Explain why my answer is wrong or incomplete, and the right reasoning, with the code.")
   local step = quiz_step(it.quiz)
-  local dir = git.step_dir(core.project, step, true)
+  -- run where the code is only for the current review (the hidden checkout must not move)
+  local dir = step.id == core.step.id and git.step_dir(core.project, step, true) or nil
   require("reviewer.ask").run({ kind = "quiz", quiz = it.quiz, qid = q.id, question = question_text, title = title(it.quiz) .. " · " .. q.id }, table.concat(parts, "\n"), dir)
 end
 
@@ -508,9 +508,11 @@ end
 function M.open(arg)
   if not core.project then return ui.notify("run :Review first", vim.log.levels.WARN) end
   load()
-  if arg and arg:match("^%d+$") then arg = "step" .. arg end
   if not arg or arg == "" then
-    if M.s and #M.s.items > 0 then return show() end
+    if M.s and M.s.quiz == core.step.id and M.s.items[M.s.pos] then return show() end
+    arg = core.step.id
+  end
+  if arg == "list" then
     local items = {}
     for _, id in ipairs(M.ids()) do
       local s = M.stats(id)
@@ -524,8 +526,8 @@ function M.open(arg)
   end
   if arg == "mistakes" then return start("mistakes", "mistakes") end
   if not load()[arg] then
-    if vim.uv.fs_stat(core.project.quiz_dir .. "/quiz-" .. arg .. ".json") then
-      return ui.notify("could not read quiz-" .. arg .. ".json", vim.log.levels.ERROR)
+    if vim.uv.fs_stat(core.quiz_file(arg)) then
+      return ui.notify("could not read " .. core.quiz_file(arg), vim.log.levels.ERROR)
     end
     return require("reviewer.prepare").quiz_or_write(arg, function() M.reload() ; M.open(arg) end)
   end

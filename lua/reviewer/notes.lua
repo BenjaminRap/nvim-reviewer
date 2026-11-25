@@ -51,14 +51,14 @@ end
 
 local function describe(n)
   local k = render.KIND[n.kind] or render.KIND.note
-  return ("%s %s%s · step %s · %s:%d  %s"):format(k.sign, n.done and "(resolved) " or "", k.name, n.step, n.path, n.line or 0, (n.text or ""):gsub("\n", " "):sub(1, 80))
+  return ("%s %s%s · %s · %s:%d  %s"):format(k.sign, n.done and "(resolved) " or "", k.name, n.step, n.path, n.line or 0, (n.text or ""):gsub("\n", " "):sub(1, 80))
 end
 
 function M.jump(n)
-  local step = core.project.steps[tonumber(n.step)]
-  if not step then return end
-  if core.step.id ~= step.id then core.set_step(step.id) end
-  require("reviewer.review").open_path(step, n.path, n.line)
+  if core.step.id ~= n.step then
+    if not require("reviewer").start_review(n.step) then return end
+  end
+  require("reviewer.review").open_path(core.step, n.path, n.line)
 end
 
 -- Pick a note: open it, resolve it, or delete it.

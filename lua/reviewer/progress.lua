@@ -17,17 +17,26 @@ function M.open()
 
   add("# Review progress: " .. core.project.name)
   add("")
-  add("| Step | Files read | Quiz | Results |")
+  -- every review seen: started, read, commented or with a quiz
+  local ids = {}
+  for id in pairs(st.reviews or {}) do ids[id] = true end
+  for id in pairs(st.read) do ids[id] = true end
+  for id in pairs(state.explain(core.project).steps or {}) do ids[id] = true end
+  for _, id in ipairs(quiz.ids()) do ids[id] = true end
+  local list = vim.tbl_keys(ids)
+  table.sort(list, function(a, b)
+    local ra, rb = (st.reviews or {})[a], (st.reviews or {})[b]
+    return ((ra and ra.at) or "") > ((rb and rb.at) or "") or (((ra and ra.at) or "") == ((rb and rb.at) or "") and a < b)
+  end)
+  add("| Review | Files read | Quiz | Results |")
   add("|---|---|---|---|")
-  for _, s in ipairs(core.project.steps) do
-    local r, t = core.reviewable(s)
-    local q = quiz.stats("step" .. s.id)
-    add(("| %s. %s | %d/%d | %s | %s |"):format(s.id, s.label, r, t, q.total and (q.answered .. "/" .. q.total) or "—",
-      q.answered > 0 and ("%d right · %d partly · %d wrong"):format(q.ok, q.part, q.bad) or "—"), { kind = "step", step = s })
-  end
-  local f = quiz.stats("final")
-  if f.total then
-    add(("| Final quiz | — | %d/%d | %s |"):format(f.answered, f.total, f.answered > 0 and ("%d right · %d partly · %d wrong"):format(f.ok, f.part, f.bad) or "—"), { kind = "quiz", quiz = "final" })
+  for _, id in ipairs(list) do
+    local read = 0
+    for _ in pairs(st.read[id] or {}) do read = read + 1 end
+    local q = quiz.stats(id)
+    local cur = core.step and core.step.id == id and " (current)" or ""
+    add(("| %s%s | %d | %s | %s |"):format(id:gsub("%.%.", " → "), cur, read, q.total and (q.answered .. "/" .. q.total) or "—",
+      q.answered > 0 and ("%d right · %d partly · %d wrong"):format(q.ok, q.part, q.bad) or "—"), { kind = "review", id = id })
   end
 
   local mistakes = {}
@@ -40,7 +49,7 @@ function M.open()
   add("")
   for i, a in ipairs(mistakes) do
     if i > 60 then add("…") break end
-    add(("- [%s · L%s] %s %s"):format(a.quiz == "final" and "final" or a.quiz:gsub("step", "step "), a.level or "?", a.last.verdict == "partial" and "~" or "✗",
+    add(("- [%s · L%s] %s %s"):format((a.quiz or ""):gsub("%.%.", " → "), a.level or "?", a.last.verdict == "partial" and "~" or "✗",
       (a.prompt or ""):gsub("\n", " "):sub(1, 110)), { kind = "question", quiz = a.quiz, qid = a.qid })
   end
 
@@ -70,8 +79,7 @@ function M.open()
     local t = targets[vim.api.nvim_win_get_cursor(0)[1]]
     if not t then return end
     close()
-    if t.kind == "step" then core.set_step(t.step.id) ; require("reviewer.panel").open()
-    elseif t.kind == "quiz" then quiz.open(t.quiz)
+    if t.kind == "review" then require("reviewer").start_review(t.id)
     elseif t.kind == "question" then quiz.open_question(t.quiz, t.qid)
     elseif t.kind == "ask" then require("reviewer.ask").show_answer(t.ask) end
   end)

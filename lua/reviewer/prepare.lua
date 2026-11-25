@@ -11,7 +11,7 @@ local claude = require("reviewer.claude")
 local explain = require("reviewer.explain")
 local ui = require("reviewer.ui")
 
-local M = { jobs = {} } -- key ("1".."n" or "final") -> job
+local M = { jobs = {} } -- review id -> job
 
 local function tag(key) return "prepare:" .. core.project.name .. ":" .. key end
 
@@ -71,7 +71,7 @@ local function run_overview(job, step, next_stage)
   for _, c in ipairs(git.commits(core.project, step)) do commits[#commits + 1] = c.hash .. " " .. c.subject end
   local generated = #core.files(step) - #files
   local prompt = table.concat({
-    "You are preparing the review of one step of a stack of branches, for a developer who will then read every changed file and answer a quiz about it.",
+    "You are preparing a code review of the changes between two branches, for a developer who will then read every changed file and answer a quiz about it.",
     "",
     explain.step_context(core.project, step, 0),
     "",
@@ -95,7 +95,7 @@ local function run_overview(job, step, next_stage)
     job.cost = job.cost + (meta and meta.cost or 0)
     if err or type(res) ~= "table" or not res.summary then
       table.insert(job.errors, "overview: " .. (err or "unexpected reply"))
-      return finish(job, "step " .. step.id .. ": the overview could not be written")
+      return finish(job, step.label .. ": the overview could not be written")
     end
     local roles = {}
     for _, fr in ipairs(type(res.files) == "table" and res.files or {}) do
@@ -189,7 +189,7 @@ local function run_comments(job, step, next_stage)
       core.changed()
       pending = pending - 1
       if pending == 0 and not job.finished then
-        if err == "cancelled" then return finish(job, "step " .. step.id .. ": preparation stopped") end
+        if err == "cancelled" then return finish(job, step.label .. ": preparation stopped") end
         next_stage()
       end
     end)
@@ -270,7 +270,7 @@ Reply with only JSON:
 For "open" questions, omit choices and answer. Write in English; keep identifiers and UI strings exactly as in the code.]]
 
 local function write_quiz(id, title, ref, questions)
-  local path = core.project.quiz_dir .. "/quiz-" .. id .. ".json"
+  local path = core.quiz_file(id)
   vim.fn.mkdir(core.project.quiz_dir, "p")
   local fh = io.open(path, "w")
   if not fh then return nil end
@@ -280,12 +280,12 @@ local function write_quiz(id, title, ref, questions)
   return path
 end
 
-local function quiz_exists(id) return vim.uv.fs_stat(core.project.quiz_dir .. "/quiz-" .. id .. ".json") ~= nil end
+local function quiz_exists(id) return vim.uv.fs_stat(core.quiz_file(id)) ~= nil end
 
 local function run_quiz(job, step, next_stage)
-  local qid = "step" .. step.id
+  local qid = step.id
   if quiz_exists(qid) and not job.force_quiz then
-    table.insert(job.notes, "kept the existing quiz (use :ReviewPrepare! " .. step.id .. " quiz to write a new one)")
+    table.insert(job.notes, "kept the existing quiz (use :ReviewPrepare! quiz to write a new one)")
     return next_stage()
   end
   job.stage = "quiz"
@@ -293,7 +293,7 @@ local function run_quiz(job, step, next_stage)
   local files = reviewable_files(step)
   local n = math.max(25, math.min(65, 20 + math.floor(#files * 0.5)))
   local prompt = table.concat({
-    "You write a review quiz about one step of a stack of branches. The developer takes it after reading every changed file, to check they understand the code: architecture, flows, which file does what, and implementation details.",
+    "You write a review quiz about the changes between two branches. The developer takes it after reading every changed file, to check they understand the code: architecture, flows, which file does what, and implementation details.",
     "",
     explain.step_context(core.project, step),
     "",
@@ -307,7 +307,7 @@ local function run_quiz(job, step, next_stage)
       table.insert(job.errors, "quiz: " .. (err or "unexpected reply"))
       return next_stage()
     end
-    local kept, dropped = M.validate(res.questions, step.head_ref, "s" .. step.id .. "-q")
+    local kept, dropped = M.validate(res.questions, step.head_ref, (step.id:gsub("[^%w%-_.]", "_")) .. "-q")
     if #kept == 0 then
       table.insert(job.errors, "quiz: no question passed the checks")
     else
@@ -323,16 +323,16 @@ end
 function M.step(step, opts, on_done)
   opts = opts or {}
   local key = step.id
-  if M.jobs[key] and not M.jobs[key].finished then return ui.notify("step " .. key .. " is already being prepared") end
+  if M.jobs[key] and not M.jobs[key].finished then return ui.notify(step.label .. " is already being prepared") end
   local dir, derr = git.step_dir(core.project, step, true)
   if not dir then return ui.notify(derr or "no folder for this step", vim.log.levels.ERROR) end
   local stages = opts.stages or { overview = true, comments = true, quiz = true }
   local job = { tag = tag(key), stage = "starting", done = 0, total = 0, cost = 0, errors = {}, notes = {}, dir = dir,
     force = opts.force and stages.comments, force_quiz = opts.force, paths = opts.paths, on_done = on_done }
   M.jobs[key] = job
-  ui.notify("preparing step " .. step.id .. " (" .. step.label .. ") in the background. :ReviewPrepare stop cancels it.")
+  ui.notify("preparing " .. step.label .. " in the background. :ReviewPrepare stop cancels it.")
   local function done()
-    finish(job, ("step %s prepared%s"):format(step.id, #job.notes > 0 and (" · " .. table.concat(job.notes, " · ")) or ""))
+    finish(job, ("%s prepared%s"):format(step.label, #job.notes > 0 and (" · " .. table.concat(job.notes, " · ")) or ""))
   end
   local function quiz() if stages.quiz then run_quiz(job, step, done) else done() end end
   local function comments() if stages.comments then run_comments(job, step, quiz) else quiz() end end
@@ -345,81 +345,22 @@ function M.step(step, opts, on_done)
   end
 end
 
-function M.final(opts, on_done)
-  opts = opts or {}
-  if M.jobs.final and not M.jobs.final.finished then return ui.notify("the final quiz is already being prepared") end
-  if quiz_exists("final") and not opts.force then return ui.notify("a final quiz already exists (use :ReviewPrepare! final to write a new one)") end
-  local last = core.project.steps[#core.project.steps]
-  local dir, derr = git.step_dir(core.project, last, true)
-  if not dir then return ui.notify(derr or "no folder for the last step", vim.log.levels.ERROR) end
-  local overviews, missing = {}, {}
-  for _, s in ipairs(core.project.steps) do
-    local o = explain.overview(core.project, s)
-    if o then overviews[#overviews + 1] = ("Step %s \"%s\":\n%s"):format(s.id, s.label, o.summary)
-    else missing[#missing + 1] = s.id end
-  end
-  local job = { tag = tag("final"), stage = "quiz", done = 0, total = 0, cost = 0, errors = {}, notes = {}, dir = dir, on_done = on_done }
-  M.jobs.final = job
-  core.changed()
-  if #missing > 0 then table.insert(job.notes, "steps without an overview: " .. table.concat(missing, ", ")) end
-  local p = core.project
-  local prompt = table.concat({
-    "You write the FINAL review quiz on a whole stack of branches. The developer already took one quiz per step, so focus on the system as a whole and on how the steps connect: cross-cutting flows, where things live in the final code, which step introduced what.",
-    "",
-    ("Project: %s. Stack: %s → %s. Your working directory holds the final code (%s); you may read and search any file."):format(p.name, p.base, table.concat(p.stack, " → "), last.head_ref),
-    "",
-    "Overviews of each step (written earlier):",
-    table.concat(overviews, "\n\n"),
-    "",
-    QUIZ_RULES:format(80),
-  }, "\n")
-  ui.notify("writing the final quiz in the background…")
-  claude.run(prompt, { json = true, tools = config.options.claude.prepare_tools, cwd = dir, tag = job.tag, use = "final" }, function(err, res, meta)
-    job.cost = job.cost + (meta and meta.cost or 0)
-    if err or type(res) ~= "table" then
-      table.insert(job.errors, "final quiz: " .. (err or "unexpected reply"))
-    else
-      local kept, dropped = M.validate(res.questions, last.head_ref, "f-q")
-      if #kept > 0 then
-        write_quiz("final", "Final quiz: the whole stack", last.head_ref, kept)
-        table.insert(job.notes, ("%d questions kept, %d dropped by the checks"):format(#kept, #dropped))
-      else
-        table.insert(job.errors, "final quiz: no question passed the checks")
-      end
-    end
-    finish(job, "final quiz")
-  end)
-end
-
--- :ReviewPrepare[!] [n|final|all|stop] [overview|comments|quiz]
+-- :ReviewPrepare[!] [overview|comments|quiz|stop]
 function M.command(args, bang)
-  if not core.project then return ui.notify("run :Review first", vim.log.levels.WARN) end
-  local target, stage = args[1], args[2]
-  if target == "stop" then
+  if not core.project or not core.step then return ui.notify("run :Review first", vim.log.levels.WARN) end
+  local arg = args[1]
+  if arg == "stop" then
     for key, j in pairs(M.jobs) do
       if not j.finished then claude.cancel(j.tag) ; j.finished = true ; j.errors = {} ; ui.notify("stopped preparing " .. key) end
     end
     return core.changed()
   end
   local stages
-  if stage then
-    if not ({ overview = true, comments = true, quiz = true })[stage] then return ui.notify("stage must be overview, comments or quiz", vim.log.levels.WARN) end
-    stages = { [stage] = true }
+  if arg then
+    if not ({ overview = true, comments = true, quiz = true })[arg] then return ui.notify("use :ReviewPrepare [overview|comments|quiz|stop]", vim.log.levels.WARN) end
+    stages = { [arg] = true }
   end
-  if target == "final" then return M.final({ force = bang }) end
-  if target == "all" then
-    local i = 0
-    local function next_step()
-      i = i + 1
-      local s = core.project.steps[i]
-      if s then M.step(s, { force = bang, stages = stages }, next_step)
-      elseif not stages or stages.quiz then M.final({ force = bang }) end
-    end
-    return next_step()
-  end
-  local step = target and core.project.steps[tonumber(target) or 0] or core.step
-  if not step then return ui.notify("no step " .. tostring(target), vim.log.levels.WARN) end
-  M.step(step, { force = bang, stages = stages })
+  M.step(core.step, { force = bang, stages = stages })
 end
 
 -- Comment only some files (from a panel group or folder).
@@ -440,7 +381,7 @@ function M.step_state(step)
   return {
     overview = explain.overview(core.project, step) ~= nil,
     commented = math.min(commented, total), total = total,
-    quiz = quiz_exists("step" .. step.id),
+    quiz = quiz_exists(step.id),
     running = M.jobs[step.id] ~= nil and not M.jobs[step.id].finished,
   }
 end
@@ -457,24 +398,21 @@ function M.offer_on_start()
   local step = core.step
   local desc, s = M.describe(step)
   local complete = s.overview and s.commented >= s.total and s.quiz
-  if mode == "all" then return M.command({ "all" }, false) end
-  if complete then return ui.notify(("step %s is already prepared (%s)"):format(step.id, desc)) end
+  if complete then return ui.notify(("%s is already prepared (%s)"):format(step.label, desc)) end
   if mode == "step" then return M.step(step) end
   local choices = {
-    { id = "step", label = ("Prepare step %s: overview, comments on every file, quiz"):format(step.id) },
-    { id = "overview", label = ("Only the overview of step %s (one call)"):format(step.id) },
-    { id = "all", label = "Prepare every step, then the final quiz (long)" },
+    { id = "step", label = "Prepare this review: overview, comments on every file, quiz" },
+    { id = "overview", label = "Only the overview of the changes (one call)" },
     { id = "no", label = "Not now (use the actions at the top of the panel)" },
   }
   vim.ui.select(choices, {
-    prompt = ("Run Claude on step %s (%s)? Now: %s"):format(step.id, step.label, desc),
+    prompt = ("Run Claude on %s? Now: %s"):format(step.label, desc),
     format_item = function(c) return c.label end,
   }, function(c)
     if not c or c.id == "no" then return end
     vim.schedule(function()
       if c.id == "step" then M.step(step)
-      elseif c.id == "overview" then M.overview_then_show(step)
-      elseif c.id == "all" then M.command({ "all" }, false) end
+      elseif c.id == "overview" then M.overview_then_show(step) end
     end)
   end)
 end
@@ -488,17 +426,15 @@ function M.overview_then_show(step)
   end)
 end
 
--- Take a quiz; offer to write it when it does not exist yet.
+-- Take a quiz; offer to write it when it does not exist yet (current review only).
 function M.quiz_or_write(quiz_id, on_ready)
   if quiz_exists(quiz_id) then return on_ready() end
-  if not config.options.ai.offer_missing_quiz then return ui.notify("no quiz " .. quiz_id .. " yet: :ReviewPrepare " .. (quiz_id == "final" and "final" or quiz_id:gsub("step", "") .. " quiz")) end
-  local is_final = quiz_id == "final"
-  local step = not is_final and core.project.steps[tonumber(quiz_id:match("%d+"))] or nil
-  vim.ui.select({ "Yes, write it now", "No" }, { prompt = ("There is no %s yet. Have Claude write it?"):format(is_final and "final quiz" or ("quiz for step " .. step.id)) }, function(c)
+  if quiz_id ~= core.step.id then return ui.notify("no quiz for " .. quiz_id .. " yet", vim.log.levels.WARN) end
+  if not config.options.ai.offer_missing_quiz then return ui.notify("no quiz yet: :ReviewPrepare quiz") end
+  vim.ui.select({ "Yes, write it now", "No" }, { prompt = ("There is no quiz for %s yet. Have Claude write it?"):format(core.step.label) }, function(c)
     if not (c and c:match("^Yes")) then return end
     vim.schedule(function()
-      local function ready() if quiz_exists(quiz_id) then on_ready() end end
-      if is_final then M.final({}, ready) else M.step(step, { stages = { quiz = true } }, ready) end
+      M.step(core.step, { stages = { quiz = true } }, function() if quiz_exists(quiz_id) then on_ready() end end)
     end)
   end)
 end
@@ -507,8 +443,8 @@ end
 function M.show_overview(step)
   step = step or core.step
   local o = explain.overview(core.project, step)
-  if not o then return ui.notify("no overview for step " .. step.id .. " yet: :ReviewPrepare " .. step.id) end
-  local lines = { ("# Step %s: %s"):format(step.id, step.label), "", ("_%s → %s · written %s_"):format(step.base_branch, step.branch, ui.fmt_date(o.at)), "" }
+  if not o then return ui.notify("no overview for " .. step.label .. " yet: :ReviewPrepare overview") end
+  local lines = { ("# %s"):format(step.label), "", ("_%s..%s · written %s_"):format(step.base_ref, step.head_ref, ui.fmt_date(o.at)), "" }
   vim.list_extend(lines, ui.wrap(o.summary, config.options.float.text_width or 96))
   if #o.flows > 0 then
     vim.list_extend(lines, { "", "## Main flows", "" })
@@ -528,7 +464,7 @@ function M.show_overview(step)
     vim.list_extend(lines, { "", "## Files", "" })
     for _, fr in ipairs(o.files) do vim.list_extend(lines, ui.wrap("- `" .. fr.path .. "`: " .. fr.role, config.options.float.text_width or 96)) end
   end
-  ui.show("Step overview", lines, { width = (config.options.float.text_width or 96) + 8 })
+  ui.show("Overview of the changes", lines, { width = (config.options.float.text_width or 96) + 8 })
 end
 
 return M

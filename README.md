@@ -1,19 +1,19 @@
 # nvim-reviewer
 
-Review a stack of branches in Neovim, one step at a time, file by file, in your real editor (LSP, search and your usual mappings all work).
+Review the changes of a branch in Neovim, file by file, in your real editor (LSP, search and your usual mappings all work).
 
-When branches are built on top of each other (`main → feature-a → feature-b → feature-c`), each step is reviewed against the step before it, so you only see that step's own changes.
+`:Review main feature` shows what `feature` changes compared with `main`. When branches are built on top of each other, review them one pair at a time: `:Review main feature-a`, then `:Review feature-a feature-b`.
 
-- **A whole step prepared in advance.** `:ReviewPrepare` has Claude read the step as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz on the step that is checked locally.
 - **Full file with its changes.** Each file opens as a normal buffer, read-only by default. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
-- **Claude's comments.** The first time you open a file, Claude Code writes a summary and a comment above each change block. Comments are saved, so each file is commented once.
-- **Read marks.** You can mark files, groups or whole folders as read in a side panel, with a reading order (database → shared → backend → frontend → tests) or a folder tree.
+- **A review prepared in advance.** `:ReviewPrepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
+- **Claude's comments** above each change block, written once per file and saved.
+- **Read marks.** Mark files, groups or whole folders as read in a side panel, in reading order (database → shared → backend → frontend → tests) or as a folder tree.
 - **Notes on lines**, of three kinds: note, question to come back to, issue to fix. They appear in the sign column and at the end of the line.
-- **Questions to Claude** about a file or selected lines. Claude runs in that step's checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
-- **Quizzes** per step and for the whole stack, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
-- **Progress view.** Shows files read, quiz results, mistakes, the questions you asked, and open notes.
+- **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
+- **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
+- **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, the questions you asked, and open notes.
 
-Everything is saved per project in `stdpath("data")/reviewer/<project>/` and kept between sessions.
+Everything is saved per repository in `stdpath("data")/reviewer/<repo>/` and kept between sessions.
 
 ## Requirements
 
@@ -33,17 +33,12 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
   main = "reviewer",
   cmd = { "Review", "ReviewQuiz", "ReviewProgress", "ReviewNotes", "ReviewAsks" },
   opts = {
-    projects = {
-      myproject = {
-        root = "~/code/myproject",
-        remote = "origin",          -- refs are read as <remote>/<branch>
-        base = "main",
-        stack = { "feature-a", "feature-b", "feature-c" },
-        labels = { ["feature-c"] = "feature-c (payments)" }, -- optional display names
+    -- nothing is required; settings per repository are optional:
+    repos = {
+      myproject = {                        -- the repository's folder name (or set `root`)
         generated = { "^src/generated/" }, -- hidden by default (Lua patterns)
-        -- worktrees = "~/code/myproject-review", -- default: next to the repo
-        -- quiz_dir = "...",                      -- default: stdpath("data")/reviewer/<name>/quizzes
-        -- groups = { ... },                      -- reading order, see below
+        -- base = "develop",               -- default base for `:Review <branch>`
+        -- groups = { ... },               -- reading order, see Options
       },
     },
   },
@@ -52,29 +47,39 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 For a local copy, use `dir = "~/path/to/nvim-reviewer"` instead of the GitHub name.
 
-Run `:checkhealth reviewer` to check git, Claude Code, the refs of every step and the quiz files.
+Run `:checkhealth reviewer` from inside a repository to check git, Claude Code, the default base branch and the last review.
 
-## How the files are opened
+## Starting a review
 
-Each step needs a checkout of the code at its head:
+From anywhere inside a git repository:
 
-- If your main checkout already sits on that commit, it is used.
-- Otherwise a **detached git worktree** is created next to the repo (by default `<repo>-review/<n>-<branch>`) the first time you open a file of that step.
+- **`:Review main feature`** reviews `feature` compared with `main`.
+- **`:Review feature`** compares `feature` with the default base (`main`, or `base` in the options).
+- **`:Review`** with no argument offers to continue your last review, or lets you pick the two branches.
+- **`p` in the panel** switches to other branches.
 
-Worktrees are local folders, so nothing is pushed. Remove them with `git worktree remove <dir>` when the review is over.
+Branch names complete with `<Tab>`.
 
-Reviewed files are read-only by default (`readonly = true`). An edit in an earlier step's worktree would go on no branch, and an edit in your main checkout would change your working copy, while the review overlay would stop lining up. Write an "issue" note instead and fix it on the branch. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files that the step does not change stay editable.
+Branch names are read on the remote: `feature` means `origin/feature` when it exists, so you review what was pushed. A name that exists only locally is used as is, and `refs/heads/feature` forces your local branch. Run `:ReviewFetch` to get the latest commits.
 
-`:ReviewFetch` runs `git fetch` and moves the step worktrees to their branch's new head, as long as they have no local changes.
+### Where the files come from
+
+The files of a review must exist on disk at the version of the reviewed branch, so that your LSP, search and file explorer work on them:
+
+- **Your own checkout** is used when it is already on that commit.
+- **Otherwise, one hidden checkout** per repository (a git worktree in `stdpath("cache")/reviewer/<repo>`, see `worktree_dir`) is created the first time, then moved to the reviewed branch at each new review. It is on no branch, so nothing you do there can affect your branches.
+
+`:ReviewClean` removes the hidden checkout; your notes and progress are kept.
+
+Reviewed files are read-only by default (`readonly = true`). An edit in the hidden checkout would be on no branch and lost at the next review, and an edit in your own checkout would change your working copy, while the review overlay would stop lining up. Write an "issue" note instead and fix it on the branch. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files the review does not change stay editable.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `:Review [project]` | Start: opens the file panel (project picked from the current directory if not given) |
-| `:ReviewStep {n}` | Go to step n |
+| `:Review [base] [branch]` | Start a review (see above) and open the file panel |
 | `:ReviewPanel` | Toggle the file panel |
-| `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the step's files |
+| `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the files of the review |
 | `:ReviewEdit` | Allow changes in the current reviewed file (read-only by default) |
 | `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
 | `:ReviewExplain[!]` | Write Claude's comments on the current file if it has none (`!` writes them again) |
@@ -84,42 +89,42 @@ Reviewed files are read-only by default (`readonly = true`). An edit in an earli
 | `:ReviewNotes` | List notes: open, resolve, edit, delete |
 | `:[range]ReviewAsk` | Ask Claude about the file or the lines |
 | `:ReviewAsks` | Questions you asked, with Claude's answers |
-| `:ReviewPrepare[!] [n\|final\|all\|stop] [overview\|comments\|quiz]` | Prepare a step in the background (see below) |
-| `:ReviewOverview` | Overview of the current step: summary, flows, key concepts, things to check, role of each file |
-| `:ReviewQuiz [n\|final\|mistakes]` | Take a quiz, continue it, or retry mistakes |
-| `:ReviewProgress` | Everything remembered, with links |
-| `:ReviewFetch` | Fetch and update the step worktrees |
+| `:ReviewPrepare[!] [overview\|comments\|quiz\|stop]` | Prepare the review in the background (see below) |
+| `:ReviewOverview` | Overview of the changes: summary, flows, key concepts, things to check, role of each file |
+| `:ReviewQuiz [list\|mistakes]` | Quiz of the current review; `list` to pick another review's quiz; `mistakes` to retry them all |
+| `:ReviewProgress` | Every review of the repository and everything remembered, with links |
+| `:ReviewFetch` | `git fetch`, then show the latest commits of the reviewed branches |
+| `:ReviewClean` | Remove the hidden checkout |
 
 ## When Claude runs
 
 Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
-- **When you start `:Review`,** the plugin shows what is already prepared for the current step and offers to prepare it: the whole step, only the overview, every step, or not now. With `ai.on_start` you can always prepare, prepare everything, or never ask.
+- **When you start a review,** the plugin shows what is already prepared and offers to prepare it: everything, only the overview, or not now. With `ai.on_start` you can always prepare or never ask.
 - **Action lines at the top of the panel** (press `<CR>` on a line, or its key):
-  - `A` prepares the step, and `D` stops it.
-  - `O` opens the step overview, writing it first if needed.
-  - `Q` and `gQ` open the step quiz and the final quiz, and offer to write them if they don't exist yet.
+  - `A` prepares the review, and `D` stops it.
+  - `O` opens the overview, writing it first if needed.
+  - `Q` opens the quiz, and offers to write it if it doesn't exist yet.
   - `c` comments the current file.
 - **In a reviewed file,** a hint on the first line tells you when it has no comments yet. `<leader>re` writes them, and asks before writing them again.
 - **Automatic comments on open:** set `ai.comment_on_open = true`, plus `ai.prefetch_next` to also comment the next unread file in the background.
 - **Your questions and quiz hints** run when you ask them. Open answers are graded by Claude unless `ai.grade_open_answers = false`.
 
-## Preparing a step
+## Preparing a review
 
-`:ReviewPrepare 2` prepares step 2 in the background, in three stages:
+`:ReviewPrepare` prepares the current review in the background, in three stages:
 
-1. **Overview.** One call reads the step as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, and one line per file on its role.
-2. **Comments on every file.** Files are sent a few at a time (`batch_files`, `batch_chars`), together with the overview, so comments can explain how a file fits with the rest of the step. Claude can open and search other files of the repo at that step.
-3. **Quiz.** About 20 to 65 questions depending on the size of the step. Each question is then checked locally: every `file:line` reference must exist at the step's head, and every line of a code snippet must be found in the referenced files. Questions that fail are dropped, and the result says how many.
+1. **Overview.** One call reads the changes as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, and one line per file on its role.
+2. **Comments on every file.** Files are sent a few at a time (`batch_files`, `batch_chars`), together with the overview, so comments can explain how a file fits with the rest. Claude can open and search other files of the repo.
+3. **Quiz.** About 20 to 65 questions depending on the size of the changes. Each question is then checked locally: every `file:line` reference must exist on the reviewed branch, and every line of a code snippet must be found in the referenced files. Questions that fail are dropped, and the result says how many.
 
 Details:
 
 - **Stop and resume.** You can stop at any time with `:ReviewPrepare stop` and run it again later. Files already commented for the same diff are skipped.
 - **Progress and cost.** The panel shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call.
-- **Single stages.** `:ReviewPrepare 2 comments` runs one stage only.
+- **Single stages.** `:ReviewPrepare comments` runs one stage only.
 - **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.
-- **`:ReviewPrepare all`** prepares every step in turn, then the final quiz.
-- **`:ReviewPrepare final`** writes the quiz on the whole stack from the step overviews and the final code.
+- **A quiz on several branches at once:** review the whole range, e.g. `:Review main feature-c`, and take its quiz.
 - **In the panel:** `C` on a group, folder or file comments just those files, and `O` shows the overview.
 
 Without preparation, you can comment files one at a time (`c` in the panel, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
@@ -128,8 +133,8 @@ Without preparation, you can comment files one at a time (`c` in the panel, `<le
 
 | Use | Context |
 |---|---|
-| Overview | Commits, file list, diffs (capped), read access to the repo at the step's head |
-| Comments | The whole file with its changes, the step overview and file roles, read access to the repo |
+| Overview | Commits, file list, diffs (capped), read access to the repo at the reviewed branch |
+| Comments | The whole file with its changes, the overview and file roles, read access to the repo |
 | Your questions | The file with its changes, the selected lines, the overview, read access to the repo |
 | Open-answer grading | The question, the reference answer, the code around the question's references |
 
@@ -142,7 +147,7 @@ Every key can be changed or disabled (see [Options](#options)). The panel and qu
 | Key | Action |
 |---|---|
 | `]c` / `[c` | Next / previous change |
-| `]f` / `[f` | Next / previous file of the step |
+| `]f` / `[f` | Next / previous file of the review |
 | `<leader>rr` | Toggle read |
 | `<leader>rn` | Mark read and open the next unread file |
 | `<leader>rN` | Add a note (normal or visual) |
@@ -161,12 +166,12 @@ Every key can be changed or disabled (see [Options](#options)). The panel and qu
 | `s` | Reading order / folders |
 | `i` | Show or hide generated files |
 | `r` | Show or hide read files |
-| `p` / `]s` / `[s` | Choose the step / next / previous |
+| `p` | Review other branches |
 | `c` / `C` | Comment the file / every file of the group or folder |
 | `a` | About the file under the cursor |
-| `A` / `D` | Prepare the step / stop |
-| `O` | Step overview |
-| `Q` / `gQ` | Step quiz / final quiz |
+| `A` / `D` | Prepare the review / stop |
+| `O` | Overview of the changes |
+| `Q` | Quiz |
 | `P` / `gn` | Progress / notes |
 | `gc` | Show or hide Claude's comments |
 | `q` / `g?` | Close / help |
@@ -179,12 +184,15 @@ Every key can be changed or disabled (see [Options](#options)). The panel and qu
 
 ```lua
 require("reviewer").setup({
-  projects = { ... },
+  repos = { ... },                -- optional settings per repository (see Install)
+  remote = "origin",              -- branch names are read as <remote>/<name> when that exists
+  base = "main",                  -- default base for :Review <branch>
+  worktree_dir = vim.fn.stdpath("cache") .. "/reviewer", -- where the hidden checkouts go
   claude = {
     cmd = "claude",
     models = {                  -- model per use (see "Models" below)
       overview = "opus", comments = "sonnet", quiz = "opus",
-      final = "opus", ask = "opus", grade = "sonnet",
+      ask = "opus", grade = "sonnet",
     },
     model = nil,                -- for any use without its own model; nil = Claude Code's default
     fallback_model = "sonnet",  -- if the chosen model is busy or not on your plan
@@ -198,7 +206,7 @@ require("reviewer").setup({
     timeout_ms = 600000,
   },
   ai = {
-    on_start = "ask",           -- on :Review: "ask", "step" (prepare it), "all", or "never"
+    on_start = "ask",           -- when a review starts: "ask", "step" (prepare it), or "never"
     comment_on_open = false,    -- comment a file automatically the first time it is opened
     prefetch_next = false,      -- then also comment the next unread file
     offer_missing_quiz = true,  -- offer to write a quiz you open that does not exist yet
@@ -237,9 +245,9 @@ require("reviewer").setup({
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri" },
     panel = { open = { "<CR>", "o" }, fold = { "<Tab>", "za" }, toggle_read = "x", read_next = "X",
               toggle_order = "s", toggle_generated = "i", toggle_hide_read = "r",
-              pick_step = "p", next_step = "]s", prev_step = "[s",
+              new_review = "p",
               explain = "c", explain_group = "C", about = "a", prepare = "A", stop = "D",
-              overview = "O", quiz = "Q", final_quiz = "gQ", progress = "P", notes = "gn",
+              overview = "O", quiz = "Q", progress = "P", notes = "gn",
               toggle_comments = "gc", close = "q", help = "g?" },
     quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
              dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
@@ -265,10 +273,9 @@ Each use of Claude has its own model. The defaults keep the strongest model wher
 
 | Use | Default | Why |
 |---|---|---|
-| `overview` | `opus` | One call per step; its summary is the context for every other call |
+| `overview` | `opus` | One call per review; its summary is the context for every other call |
 | `comments` | `sonnet` | One call per file or batch of files, so most of the calls |
-| `quiz` | `opus` | One call per step; questions must be exact |
-| `final` | `opus` | The final quiz on the whole stack |
+| `quiz` | `opus` | One call per review; questions must be exact |
 | `ask` | `opus` | Your questions and quiz hints |
 | `grade` | `sonnet` | Short check of an open answer against a reference answer |
 
@@ -309,12 +316,12 @@ Every colour comes from a highlight group linked to a standard one, so the plugi
 
 ## Quiz files
 
-Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each step quiz has the id `step<n>`, and `final` is the quiz on the whole stack:
+Quizzes are JSON files named `quiz-<base>..<branch>.json` in the repository's `quiz_dir`. The `id` of a quiz is its review, `<base>..<branch>`:
 
 ```json
 {
-  "id": "step1",
-  "title": "feature-a",
+  "id": "main..feature-a",
+  "title": "main → feature-a",
   "ref": "origin/feature-a",
   "questions": [
     {
@@ -322,7 +329,7 @@ Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each ste
       "level": 1,
       "topic": "Scope",
       "type": "single",
-      "prompt": "What does this step add?",
+      "prompt": "What does this branch add?",
       "code": "optional snippet",
       "codeLang": "typescript",
       "choices": ["...", "...", "...", "..."],
@@ -338,7 +345,7 @@ Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each ste
 - **`type`** is `single`, `multi` or `open`. `answer` holds 0-based indexes and is omitted for `open`.
 - **`level`** goes from 1 (architecture) to 5 (line-level details).
 - **Question ids** must be unique across all quizzes of a project, because results are saved by id.
-- **Refs** point to the code at the step's head.
+- **Refs** point to the code of the reviewed branch.
 
 `:ReviewPrepare` writes these files for you. You can also write them yourself or with another tool; they go through the same checks only when written by `:ReviewPrepare`.
 
@@ -347,7 +354,7 @@ Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each ste
 `stdpath("data")/reviewer/<project>/`:
 
 - `state.json`: read marks, notes, quiz attempts with their history, questions asked to Claude
-- `explain.json`: step overviews and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
+- `explain.json`: overviews of each review and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
 - `quizzes/`: the default place for quiz files
 
 ## License

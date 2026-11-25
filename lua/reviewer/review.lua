@@ -88,7 +88,7 @@ function M.unlock()
   if not ctx then return ui.notify("this buffer is not a reviewed file", vim.log.levels.WARN) end
   if ctx.deleted then return ui.notify("this file is deleted in this step; there is nothing to edit", vim.log.levels.WARN) end
   M.lock(buf, false)
-  local where = ctx.dir == ctx.project.root and "your own checkout" or ("a detached worktree (" .. ctx.dir .. "), on no branch")
+  local where = ctx.dir == ctx.project.root and "your own checkout" or ("the hidden checkout (" .. ctx.dir .. "), on no branch, and are lost when it moves to another review")
   ui.notify(("editing unlocked for %s. Changes go to %s, and the review overlay may no longer line up."):format(ctx.file.path, where), vim.log.levels.WARN)
 end
 
@@ -98,7 +98,7 @@ function M.open(step, f, line)
   vim.api.nvim_set_current_win(win)
   M.last_win = win
   if f.status == "D" then
-    local name = ("reviewer://step%s/%s (deleted)"):format(step.id, f.path)
+    local name = ("reviewer://%s/%s (deleted)"):format(step.id, f.path)
     local buf = vim.fn.bufnr(name)
     if buf == -1 then
       buf = vim.api.nvim_create_buf(true, true)
@@ -114,7 +114,7 @@ function M.open(step, f, line)
     if ctx then M.attach(buf, ctx) end
   else
     local dir, err = git.step_dir(project, step, true)
-    if not dir then return ui.notify(err or "no folder for this step", vim.log.levels.ERROR) end
+    if not dir then return ui.notify(err or "no checkout for this review", vim.log.levels.ERROR) end
     vim.cmd.edit(vim.fn.fnameescape(dir .. "/" .. f.path))
     M.attach(vim.api.nvim_get_current_buf())
   end
@@ -129,7 +129,7 @@ end
 function M.open_path(step, path, line)
   local f = git.find_file(core.project, step, path)
   if f then return M.open(step, f, line) end
-  ui.notify(path .. " is not changed in step " .. step.id, vim.log.levels.WARN)
+  ui.notify(path .. " is not changed in " .. step.label, vim.log.levels.WARN)
 end
 
 local function visible_files(step)
@@ -153,7 +153,7 @@ function M.move(delta, unread_only)
     local f = files[i]
     if not unread_only or not core.is_read(f.path, step) then return M.open(step, f) end
   end
-  ui.notify("every file of step " .. step.id .. " is read. Time for the quiz: :ReviewQuiz " .. step.id)
+  ui.notify("every file of " .. step.label .. " is read. Time for the quiz: :ReviewQuiz")
 end
 
 function M.toggle_read(ctx)
@@ -212,7 +212,7 @@ function M.about()
   local ctx = M.current_ctx()
   if not ctx then return ui.notify("open a reviewed file first", vim.log.levels.WARN) end
   local e = explain.get(ctx)
-  local lines = { "# " .. ctx.file.path, "", ("Step %s · %s · +%d −%d"):format(ctx.step.id, explain.STATUS[ctx.file.status] or ctx.file.status, ctx.file.add, ctx.file.del), "" }
+  local lines = { "# " .. ctx.file.path, "", ("%s · %s · +%d −%d"):format(ctx.step.label, explain.STATUS[ctx.file.status] or ctx.file.status, ctx.file.add, ctx.file.del), "" }
   if e then
     vim.list_extend(lines, { "## What this file is", "" }); vim.list_extend(lines, ui.wrap(e.summary, config.options.float.text_width or 96))
     vim.list_extend(lines, { "", "## What changed here", "" }); vim.list_extend(lines, ui.wrap(e.changes, config.options.float.text_width or 96))

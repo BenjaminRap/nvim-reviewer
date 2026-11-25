@@ -94,9 +94,9 @@ function M.commits(project, step, path)
   return list
 end
 
--- Folder holding the files of a step as they are at its head.
--- The main checkout is used when it already sits on that commit;
--- otherwise a detached worktree is created next to the repo.
+-- Folder holding the files of the review as they are at its head branch.
+-- Your own checkout is used when it already sits on that commit; otherwise one
+-- hidden checkout per repository (config `worktree_dir`) is created or moved there.
 function M.step_dir(project, step, create)
   if step._dir then return step._dir end
   local dir, err = M._step_dir(project, step, create)
@@ -108,39 +108,33 @@ function M._step_dir(project, step, create)
   local head = M.rev(project, step.head_ref)
   if not head then return nil, "unknown ref " .. step.head_ref .. " (run :ReviewFetch?)" end
   if M.rev(project, "HEAD") == head then return project.root end
-  local dir = string.format("%s/%d-%s", project.worktrees, step.index, (step.branch:gsub("[^%w%-_.]", "-")))
+  local dir = project.worktree
   if vim.uv.fs_stat(dir) then
-    local wt_head = M.rev(project, "HEAD", dir)
-    if wt_head ~= head then step.stale = true end
+    if M.rev(project, "HEAD", dir) == head then return dir end
+    if not create then return nil end
+    local dirty = M.run({ "status", "--porcelain" }, dir)
+    if dirty and dirty ~= "" then
+      return nil, "the hidden checkout " .. dir .. " has local changes; commit or discard them there, or delete it with :ReviewClean"
+    end
+    local _, err = M.run({ "checkout", "--quiet", "--detach", step.head_ref }, dir)
+    if err then return nil, "could not move the hidden checkout: " .. err end
     return dir
   end
   if not create then return nil end
-  vim.fn.mkdir(project.worktrees, "p")
+  vim.fn.mkdir(vim.fs.dirname(dir), "p")
+  M.run({ "worktree", "prune" }, project.root)
   local _, err = M.run({ "worktree", "add", "--detach", dir, step.head_ref }, project.root)
   if err then return nil, "git worktree add failed: " .. err end
-  vim.notify("reviewer: created " .. dir .. " for step " .. step.id .. " (" .. step.branch .. ")")
   return dir
 end
 
--- Move existing step worktrees to their branch's current head (after a fetch).
-function M.update_worktrees(project)
-  local report = {}
-  for _, step in ipairs(project.steps) do
-    step.stale = nil
-    step._dir = nil
-    step._hash = nil
-    local dir = string.format("%s/%d-%s", project.worktrees, step.index, (step.branch:gsub("[^%w%-_.]", "-")))
-    if vim.uv.fs_stat(dir) then
-      local dirty = M.run({ "status", "--porcelain" }, dir)
-      if dirty and dirty ~= "" then
-        report[#report + 1] = "step " .. step.id .. ": local changes in " .. dir .. ", not moved"
-      else
-        local _, err = M.run({ "checkout", "--detach", step.head_ref }, dir)
-        report[#report + 1] = "step " .. step.id .. ": " .. (err and ("failed: " .. err) or "up to date")
-      end
-    end
-  end
-  return report
+-- Remove the hidden checkout of a repository.
+function M.remove_worktree(project)
+  if not vim.uv.fs_stat(project.worktree) then return true end
+  local _, err = M.run({ "worktree", "remove", "--force", project.worktree }, project.root)
+  if err then return nil, err end
+  M.run({ "worktree", "prune" }, project.root)
+  return true
 end
 
 function M.fetch(project)

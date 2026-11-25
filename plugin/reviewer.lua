@@ -9,11 +9,15 @@ end
 local function c() return require("reviewer").commands end
 local cmd = vim.api.nvim_create_user_command
 
-cmd("Review", function(o) require("reviewer").start(o.args) end, {
-  nargs = "?", desc = "Start reviewing a project's branch stack",
-  complete = function() return require("reviewer.config").project_names() end,
+cmd("Review", function(o) require("reviewer").start(o.fargs) end, {
+  nargs = "*", desc = "Review a branch: :Review [base] head (no argument: continue or choose)",
+  complete = function(lead)
+    local ok, core = pcall(require, "reviewer.core")
+    local repo = ok and core.repo_here()
+    if not repo then return {} end
+    return vim.tbl_filter(function(b) return b:find(lead, 1, true) == 1 end, require("reviewer").branches(repo))
+  end,
 })
-cmd("ReviewStep", function(o) c().step(o.args) end, { nargs = 1, desc = "Go to a review step" })
 cmd("ReviewPanel", function() c().panel() end, { desc = "Toggle the review file panel" })
 cmd("ReviewNext", function() c().next() end, { desc = "Open the next file of the step" })
 cmd("ReviewPrev", function() c().prev() end, { desc = "Open the previous file of the step" })
@@ -29,31 +33,16 @@ cmd("ReviewNotes", function() c().notes() end, { desc = "List, open, resolve or 
 cmd("ReviewAsk", function(o) c().ask(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, { range = true, desc = "Ask Claude about this file or the selected lines" })
 cmd("ReviewAsks", function() c().asks() end, { desc = "Questions you asked Claude, with answers" })
 cmd("ReviewQuiz", function(o) c().quiz(o.args) end, {
-  nargs = "?", desc = "Take a quiz: step number, final, or mistakes",
+  nargs = "?", desc = "Quiz of the current review; `list` for another one, `mistakes` to retry them all",
   complete = function()
-    local ok, quiz = pcall(require, "reviewer.quiz")
-    local list = ok and quiz.ids() or {}
-    for i, id in ipairs(list) do list[i] = id:gsub("^step", "") end
-    list[#list + 1] = "mistakes"
-    return list
+    return { "list", "mistakes" }
   end,
 })
 cmd("ReviewProgress", function() c().progress() end, { desc = "Files read, quiz results, mistakes, questions, notes" })
 cmd("ReviewPrepare", function(o) c().prepare(o.fargs, o.bang) end, {
-  nargs = "*", bang = true, desc = "Prepare a step in the background: overview, comments on every file, quiz",
-  complete = function(_, line)
-    local n = #vim.split(line, "%s+") - 1
-    if n <= 1 then
-      local list = { "final", "all", "stop" }
-      local ok, config = pcall(require, "reviewer.config")
-      for _, name in ipairs(ok and config.project_names() or {}) do
-        for i = 1, #config.project(name).steps do list[#list + 1] = tostring(i) end
-        break
-      end
-      return list
-    end
-    return { "overview", "comments", "quiz" }
-  end,
+  nargs = "*", bang = true, desc = "Prepare the review in the background: overview, comments on every file, quiz",
+  complete = function() return { "overview", "comments", "quiz", "stop" } end,
 })
-cmd("ReviewOverview", function() c().overview() end, { desc = "Overview of the current step" })
-cmd("ReviewFetch", function() c().fetch() end, { desc = "git fetch, then move the step folders to their branch heads" })
+cmd("ReviewOverview", function() c().overview() end, { desc = "Overview of the changes of the review" })
+cmd("ReviewFetch", function() c().fetch() end, { desc = "git fetch, then show the latest commits of the reviewed branches" })
+cmd("ReviewClean", function() c().clean() end, { desc = "Remove the hidden checkout of this repository" })

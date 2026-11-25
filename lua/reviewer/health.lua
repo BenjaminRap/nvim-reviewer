@@ -9,21 +9,26 @@ function M.check()
   local cmd = config.options.claude.cmd
   if vim.fn.executable(cmd) == 1 then h.ok("Claude Code found: " .. vim.fn.exepath(cmd))
   else h.warn("'" .. cmd .. "' not found: comments, questions and open-answer grading will not work") end
-  local names = config.project_names()
-  if #names == 0 then h.warn("no project configured; see the README") end
-  local git = require("reviewer.git")
-  for _, name in ipairs(names) do
-    local p = config.project(name)
-    h.start("project " .. name)
-    if vim.uv.fs_stat(p.root) then h.ok("root " .. p.root) else h.error("root not found: " .. p.root) end
-    for _, s in ipairs(p.steps) do
-      if git.rev(p, s.head_ref) then h.ok(("step %s: %s..%s"):format(s.id, s.base_ref, s.head_ref))
-      else h.error(("step %s: unknown ref %s (run :ReviewFetch)"):format(s.id, s.head_ref)) end
-    end
-    local quizzes = vim.fn.glob(p.quiz_dir .. "/quiz-*.json", false, true)
-    if #quizzes > 0 then h.ok(#quizzes .. " quiz file(s) in " .. p.quiz_dir) else h.info("no quiz files in " .. p.quiz_dir) end
-    h.info("saved state: " .. p.data_dir .. "/state.json")
+
+  local core = require("reviewer.core")
+  local repo = core.repo_here()
+  h.start("repository of the current directory")
+  if not repo then return h.info("not inside a git repository; :Review works from inside one") end
+  h.ok(("%s (%s)"):format(repo.name, repo.root))
+  local base_ref = core.resolve(repo, repo.base)
+  if base_ref then h.ok("default base: " .. base_ref)
+  else h.warn(("default base '%s' not found; set `base` in the options or give two branches to :Review"):format(repo.base)) end
+  local base, head = core.last(repo)
+  if base then
+    local r = core.review(repo, base, head)
+    if r then h.ok(("last review: %s (%s..%s)"):format(r.label, r.base_ref, r.head_ref))
+    else h.warn(("last review %s → %s: a branch is missing (run :ReviewFetch?)"):format(base, head)) end
   end
+  if vim.uv.fs_stat(repo.worktree) then h.info("hidden checkout: " .. repo.worktree .. " (:ReviewClean removes it)")
+  else h.info("no hidden checkout yet (made when the reviewed branch is not the one checked out)") end
+  local quizzes = vim.fn.glob(repo.quiz_dir .. "/quiz-*.json", false, true)
+  h.info(#quizzes .. " quiz file(s) in " .. repo.quiz_dir)
+  h.info("saved state: " .. repo.data_dir .. "/state.json")
 end
 
 return M

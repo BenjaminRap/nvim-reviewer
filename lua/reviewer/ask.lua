@@ -46,8 +46,7 @@ function M.file_context(ctx, l1, l2)
   local parts = {
     claude.PROJECT_INTRO,
     "",
-    ("Project %s, reviewed as a stack of branches: %s → %s."):format(p.name, p.base, table.concat(p.stack, " → ")),
-    ("Current step %s \"%s\" (%s..%s). Your working directory holds the code at the head of this step; you may read other files to answer."):format(s.id, s.label, s.base_ref, s.head_ref),
+    ("Repository %s. The review covers branch %s compared with %s (%s..%s). Your working directory holds the code at the head of the reviewed branch; you may read other files to answer."):format(p.name, s.branch, s.base_branch, s.base_ref, s.head_ref),
     ("Current file: %s (%s, +%d −%d)."):format(f.path, explain.STATUS[f.status] or f.status, f.add, f.del),
   }
   if e then parts[#parts + 1] = "Earlier summary of this file: " .. e.summary .. " " .. e.changes end

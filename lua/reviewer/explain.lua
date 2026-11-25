@@ -41,13 +41,13 @@ end
 -- Shared context: project, step, and the overview when there is one.
 function M.step_context(project, step, max_roles)
   local lines = {
-    ("Project: %s. The work is a stack of branches reviewed step by step: %s → %s."):format(project.name, project.base, table.concat(project.stack, " → ")),
-    ("This is step %s \"%s\" (%s..%s). Your working directory holds the code at the head of this step: you may open, search and read any file to understand how the code is used, but do not modify anything."):format(step.id, step.label, step.base_ref, step.head_ref),
+    ("Repository: %s. The review covers the changes of branch %s compared with %s (%s..%s)."):format(project.name, step.branch, step.base_branch, step.base_ref, step.head_ref),
+    "Your working directory holds the code at the head of the reviewed branch: you may open, search and read any file to understand how the code is used, but do not modify anything.",
   }
   local o = M.overview(project, step)
   if o then
     lines[#lines + 1] = ""
-    lines[#lines + 1] = "Overview of the whole step (written earlier):"
+    lines[#lines + 1] = "Overview of all the changes (written earlier):"
     lines[#lines + 1] = o.summary or ""
     if o.flows and #o.flows > 0 then
       lines[#lines + 1] = "Main flows:"

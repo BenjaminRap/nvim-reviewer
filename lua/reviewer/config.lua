@@ -2,8 +2,14 @@
 local M = {}
 
 M.defaults = {
-  -- name -> project definition (see README)
-  projects = {},
+  -- Optional settings per repository, keyed by the repository's folder name
+  -- (or give `root` to match a path). Nothing is needed to review a repo.
+  repos = {},
+  remote = "origin", -- branch names are read as <remote>/<name> when that exists
+  base = "main", -- base branch when :Review gets only one branch
+  -- One hidden checkout per repo, used when your own checkout is not on the head
+  -- branch of the review. It is moved to the head of each new review.
+  worktree_dir = vim.fn.stdpath("cache") .. "/reviewer",
   claude = {
     cmd = "claude",
     -- Model per use: an alias ("opus", "sonnet", "haiku") or a full model name.
@@ -32,8 +38,8 @@ M.defaults = {
   },
   -- When Claude runs. Everything else is on demand (panel actions, keys, commands).
   ai = {
-    -- On :Review: "ask" (offer to prepare the current step), "step" (prepare it
-    -- without asking), "all" (prepare every step and the final quiz), "never".
+    -- When a review starts: "ask" (offer to prepare it), "step" (prepare it
+    -- without asking), or "never".
     on_start = "ask",
     comment_on_open = false, -- comment a file automatically the first time it is opened
     prefetch_next = false, -- then also comment the next unread file in the background
@@ -42,9 +48,9 @@ M.defaults = {
   },
   show_comments = true, -- Claude's comments above the code
   show_removed = true, -- removed lines shown in place, in red
-  -- Reviewed files cannot be changed. Earlier steps open in detached worktrees
-  -- and the last one may be your own checkout, so an edit there would be lost
-  -- or would change your working copy. :ReviewEdit unlocks one buffer.
+  -- Reviewed files cannot be changed: they may be in the hidden checkout (an edit
+  -- there is on no branch) or in your own checkout (an edit changes your working
+  -- copy). :ReviewEdit unlocks one buffer.
   readonly = true,
   hide_generated = true,
   order = "reading", -- "reading" (groups) or "tree" (folders)
@@ -94,13 +100,13 @@ M.defaults = {
       toggle_order = "s", -- reading order / folders
       toggle_generated = "i",
       toggle_hide_read = "r",
-      pick_step = "p", next_step = "]s", prev_step = "[s",
+      new_review = "p", -- review another pair of branches
       explain = "c", -- comment the file under the cursor
       explain_group = "C", -- comment every file of the group/folder under the cursor
       about = "a",
       prepare = "A", stop = "D",
       overview = "O",
-      quiz = "Q", final_quiz = "gQ",
+      quiz = "Q",
       progress = "P", notes = "gn",
       toggle_comments = "gc",
       close = "q", help = "g?",
@@ -141,36 +147,30 @@ M.options = vim.deepcopy(M.defaults)
 
 local function expand(p) return p and vim.fs.normalize(vim.fn.expand(p)) or nil end
 
-local function normalize_project(name, p)
-  assert(p.root, "reviewer: project '" .. name .. "' needs a root")
-  assert(type(p.stack) == "table" and #p.stack > 0, "reviewer: project '" .. name .. "' needs a stack of branches")
-  local proj = vim.tbl_extend("force", {
-    remote = "origin",
-    base = "main",
-    labels = {},
-  }, p)
-  proj.name = name
-  proj.root = expand(p.root)
-  proj.worktrees = expand(p.worktrees) or (vim.fs.dirname(proj.root) .. "/" .. vim.fs.basename(proj.root) .. "-review")
-  proj.data_dir = vim.fn.stdpath("data") .. "/reviewer/" .. name
-  proj.quiz_dir = expand(p.quiz_dir) or (proj.data_dir .. "/quizzes")
-  proj.groups = p.groups or M.options.groups
-  proj.generated = vim.list_extend(vim.deepcopy(M.options.generated), p.generated or {})
-  proj.steps = {}
-  local prev = proj.base
-  for i, branch in ipairs(proj.stack) do
-    proj.steps[i] = {
-      id = tostring(i),
-      index = i,
-      branch = branch,
-      label = proj.labels[branch] or branch,
-      base_branch = prev,
-      base_ref = proj.remote .. "/" .. prev,
-      head_ref = proj.remote .. "/" .. branch,
-    }
-    prev = branch
+local function expand_root(p) return p and vim.fs.normalize(vim.fn.expand(p)) or nil end
+
+-- Settings of the repository at `root`, defaults filled in.
+function M.repo(root)
+  root = vim.fs.normalize(root)
+  local name, user = vim.fs.basename(root), {}
+  for key, r in pairs(M.options.repos or {}) do
+    if (r.root and expand_root(r.root) == root) or (not r.root and key == vim.fs.basename(root)) then
+      name, user = key, r
+      break
+    end
   end
-  return proj
+  local repo = {
+    name = name,
+    root = root,
+    remote = user.remote or M.options.remote,
+    base = user.base or M.options.base,
+    groups = user.groups or M.options.groups,
+    generated = vim.list_extend(vim.deepcopy(M.options.generated), user.generated or {}),
+    data_dir = vim.fn.stdpath("data") .. "/reviewer/" .. name,
+    worktree = expand_root(user.worktree) or (M.options.worktree_dir .. "/" .. name),
+  }
+  repo.quiz_dir = expand_root(user.quiz_dir) or (repo.data_dir .. "/quizzes")
+  return repo
 end
 
 function M.setup(opts)
@@ -195,19 +195,10 @@ function M.setup(opts)
   -- `claude.model` alone means "this model for everything"
   if opts.claude and opts.claude.model and not opts.claude.models then M.options.claude.models = {} end
   if opts.groups then M.options.groups = opts.groups end
-  local projects = {}
-  for name, p in pairs(M.options.projects or {}) do projects[name] = normalize_project(name, p) end
-  M.options.projects = projects
-end
-
-function M.project(name)
-  return M.options.projects[name]
-end
-
-function M.project_names()
-  local names = vim.tbl_keys(M.options.projects)
-  table.sort(names)
-  return names
+  -- older name of `repos`
+  if opts.projects then M.options.repos = vim.tbl_extend("force", opts.projects, opts.repos or {}) end
+  M.options.worktree_dir = vim.fs.normalize(vim.fn.expand(M.options.worktree_dir))
+  if M.options.ai.on_start == "all" then M.options.ai.on_start = "step" end
 end
 
 return M

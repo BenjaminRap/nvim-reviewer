@@ -1,4 +1,4 @@
--- Side panel listing a step's changed files, with read marks per file, group and folder.
+-- Side panel listing the changed files of the review, with read marks per file, group and folder.
 local config = require("reviewer.config")
 local core = require("reviewer.core")
 local state = require("reviewer.state")
@@ -27,16 +27,14 @@ local function help_lines()
     { k.toggle_order, "reading order / folders" },
     { k.toggle_generated, "show or hide generated files" },
     { k.toggle_hide_read, "show or hide read files" },
-    { k.pick_step, "choose the step" },
-    { { keys.label(k.next_step), keys.label(k.prev_step) }, "next / previous step" },
+    { k.new_review, "review other branches" },
     { k.explain, "Claude's comments on the file under the cursor" },
     { k.explain_group, "comment every file of the group or folder" },
     { k.about, "about the file under the cursor" },
-    { k.prepare, "prepare the step with Claude (overview, comments, quiz)" },
+    { k.prepare, "prepare the review with Claude (overview, comments, quiz)" },
     { k.stop, "stop preparing" },
-    { k.overview, "step overview (written first if missing)" },
-    { k.quiz, "step quiz (offers to write it if missing)" },
-    { k.final_quiz, "final quiz" },
+    { k.overview, "overview of the changes (written first if missing)" },
+    { k.quiz, "quiz (offers to write it if missing)" },
     { k.progress, "progress" },
     { k.notes, "notes" },
     { k.toggle_comments, "show or hide Claude's comments" },
@@ -73,8 +71,8 @@ local function is_open() return M.win and vim.api.nvim_win_is_valid(M.win) end
 local function quiz_line(step)
   local ok, quiz = pcall(require, "reviewer.quiz")
   if not ok then return "" end
-  local s = quiz.stats("step" .. step.id)
-  if not s.total then return "quiz not available" end
+  local s = quiz.stats(step.id)
+  if not s.total then return "no quiz yet" end
   if s.answered == 0 then return ("quiz: %d questions"):format(s.total) end
   return ("quiz %d/%d · %d right · %d partly · %d wrong"):format(s.answered, s.total, s.ok, s.part, s.bad)
 end
@@ -90,10 +88,9 @@ local function build()
   local function hl_range(l, s, e, group) hls[#hls + 1] = { l - 1, s, e, group } end
 
   local read, total = core.reviewable(step)
-  add(("Step %s/%d · %s"):format(step.id, #project.steps, step.label), { kind = "step" }, "ReviewerHeader")
-  add(("%s → %s"):format(step.base_branch, step.branch), nil, "ReviewerDim")
+  add(("%s → %s"):format(step.base_branch, step.branch), nil, "ReviewerHeader")
+  add(("%s · %s..%s"):format(project.name, step.base_ref, step.head_ref), nil, "ReviewerDim")
   add(("%d/%d files read · %s"):format(read, total, quiz_line(step)), nil, "ReviewerDim")
-  if step.stale then add("! branch moved since the folder was made: :ReviewFetch", nil, "ReviewerPartial") end
   -- Actions (press <CR> on a line, or its key)
   local prep = require("reviewer.prepare")
   local quiz = require("reviewer.quiz")
@@ -107,13 +104,12 @@ local function build()
     add(ps, nil, "ReviewerPartial")
     add(("%s %s  stop preparing"):format(sym("stop"), K("stop")), { kind = "action", run = function() prep.command({ "stop" }) end }, "ReviewerAction")
   elseif not (s.overview and s.commented >= s.total and s.quiz) then
-    add(("%s %s  prepare this step with Claude (comments %d/%d)"):format(sym("action"), K("prepare"), s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "ReviewerAction")
+    add(("%s %s  prepare this review with Claude (comments %d/%d)"):format(sym("action"), K("prepare"), s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "ReviewerAction")
   end
-  add(("%s %s  "):format(sym("action"), K("overview")) .. (s.overview and "step overview" or "write the step overview (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "ReviewerAction")
-  local qs = quiz.stats("step" .. step.id)
-  add(("%s %s  "):format(sym("action"), K("quiz")) .. (s.quiz and ("step quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the step quiz"), { kind = "action", run = function() M.take_quiz("step" .. step.id) end }, "ReviewerAction")
-  local fs = quiz.stats("final")
-  add(("%s %s  "):format(sym("action"), K("final_quiz")) .. (fs.total and ("final quiz (%d/%d answered)"):format(fs.answered, fs.total) or "write the final quiz"), { kind = "action", run = function() M.take_quiz("final") end }, "ReviewerAction")
+  add(("%s %s  "):format(sym("action"), K("overview")) .. (s.overview and "overview of the changes" or "write the overview of the changes (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "ReviewerAction")
+  local qs = quiz.stats(step.id)
+  add(("%s %s  "):format(sym("action"), K("quiz")) .. (s.quiz and ("quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the quiz"), { kind = "action", run = function() M.take_quiz(step.id) end }, "ReviewerAction")
+  add(("%s %s  review other branches"):format(sym("action"), K("new_review")), { kind = "action", run = function() require("reviewer").pick_review() end }, "ReviewerAction")
   if core.current and core.current.step.id == step.id and not core.current.file.generated and not explain.get(core.current) then
     local ctx = core.current
     add(("%s %s  comment "):format(sym("action"), K("explain")) .. vim.fs.basename(ctx.file.path), { kind = "action", run = function() require("reviewer.review").explain_ctx(ctx, false) end }, "ReviewerAction")
@@ -285,9 +281,7 @@ local function setup_keys(buf)
   map(k.toggle_order, function() M.order = (M.order == "tree") and "reading" or "tree" ; M.render() end, "reading order / folders")
   map(k.toggle_generated, function() M.hide_generated = not M.hide_generated ; M.render() end, "show or hide generated files")
   map(k.toggle_hide_read, function() M.hide_read = not M.hide_read ; M.render() end, "show or hide read files")
-  map(k.pick_step, function() M.pick_step() end, "choose the step")
-  map(k.next_step, function() core.set_step(math.min(#core.project.steps, core.step.index + 1)) end, "next step")
-  map(k.prev_step, function() core.set_step(math.max(1, core.step.index - 1)) end, "previous step")
+  map(k.new_review, function() require("reviewer").pick_review() end, "review other branches")
   map(k.explain, act(function(it)
     if it.kind == "file" then review.explain_ctx(core.make_ctx(core.step, it.file), false)
     elseif it.kind == "action" then it.run() end
@@ -297,11 +291,10 @@ local function setup_keys(buf)
     if paths then require("reviewer.prepare").paths(core.step, paths) end
   end), "comment every file of the group")
   map(k.about, act(function(it) if it.kind == "file" then review.open(core.step, it.file) ; review.about() end end), "about the file")
-  map(k.prepare, function() require("reviewer.prepare").step(core.step) end, "prepare the step")
+  map(k.prepare, function() require("reviewer.prepare").step(core.step) end, "prepare the review")
   map(k.stop, function() require("reviewer.prepare").command({ "stop" }) end, "stop preparing")
-  map(k.overview, function() require("reviewer.prepare").overview_then_show(core.step) end, "step overview")
-  map(k.quiz, function() M.take_quiz("step" .. core.step.id) end, "step quiz")
-  map(k.final_quiz, function() M.take_quiz("final") end, "final quiz")
+  map(k.overview, function() require("reviewer.prepare").overview_then_show(core.step) end, "overview")
+  map(k.quiz, function() M.take_quiz(core.step.id) end, "quiz")
   map(k.progress, function() require("reviewer.progress").open() end, "progress")
   map(k.notes, function() require("reviewer.notes").list() end, "notes")
   map(k.toggle_comments, function() review.toggle_comments() end, "show or hide comments")
@@ -312,17 +305,6 @@ end
 function M.take_quiz(id)
   local quiz = require("reviewer.quiz")
   require("reviewer.prepare").quiz_or_write(id, function() quiz.reload() ; quiz.open(id) end)
-end
-
-function M.pick_step()
-  local items = {}
-  for _, s in ipairs(core.project.steps) do
-    local r, t = core.reviewable(s)
-    items[#items + 1] = { step = s, label = ("%s. %s  (%d/%d read)"):format(s.id, s.label, r, t) }
-  end
-  vim.ui.select(items, { prompt = "Review step", format_item = function(i) return i.label end }, function(choice)
-    if choice then core.set_step(choice.step.id) end
-  end)
 end
 
 function M.open()
