@@ -10,8 +10,7 @@ local ui = require("reviewer.ui")
 local M = { last_win = nil }
 
 local function is_panel(win)
-  local panel = require("reviewer.panel")
-  return panel.win ~= nil and win == panel.win
+  return require("reviewer.browser").is_browser(vim.api.nvim_win_get_buf(win))
 end
 
 function M.main_win()
@@ -44,6 +43,7 @@ local function set_keymaps(buf)
   keys.map(buf, "n", km.about, function() M.about() end, "about this file")
   keys.map(buf, { "n", "x" }, km.note, function() require("reviewer.notes").add_here() end, "add a note")
   keys.map(buf, { "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, "ask Claude")
+  keys.map(buf, "n", km.browse, function() require("reviewer.browser").open_here() end, "review browser on this folder")
 end
 
 function M.attach(buf, ctx)
@@ -92,9 +92,10 @@ function M.unlock()
   ui.notify(("editing unlocked for %s. Changes go to %s, and the review overlay may no longer line up."):format(ctx.file.path, where), vim.log.levels.WARN)
 end
 
-function M.open(step, f, line)
+-- Open a file of the review, optionally at a line, in `win` (default: the main window).
+function M.open(step, f, line, win)
   local project = core.project
-  local win = M.main_win()
+  win = win or M.main_win()
   vim.api.nvim_set_current_win(win)
   M.last_win = win
   if f.status == "D" then
@@ -133,8 +134,10 @@ function M.open_path(step, path, line)
 end
 
 local function visible_files(step)
-  local panel = require("reviewer.panel")
-  return core.ordered(step, { hide_generated = panel.hide_generated, order = panel.order })
+  local b = require("reviewer.browser")
+  local hide = b.hide_generated
+  if hide == nil then hide = config.options.hide_generated end
+  return core.ordered(step, { hide_generated = hide, order = "reading" })
 end
 
 function M.move(delta, unread_only)

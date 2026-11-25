@@ -20,7 +20,7 @@ function M.setup(opts)
       if not core.project then return end
       local review = require("reviewer.review")
       local win = vim.api.nvim_get_current_win()
-      if vim.api.nvim_win_get_config(win).relative == "" and win ~= require("reviewer.panel").win then review.last_win = win end
+      if vim.api.nvim_win_get_config(win).relative == "" and not require("reviewer.browser").is_browser(ev.buf) then review.last_win = win end
       review.attach(ev.buf)
     end,
   })
@@ -36,7 +36,7 @@ local function ensure_setup()
   if not did_setup then M.setup({}) end
 end
 
--- Open the current review: its checkout, the panel, the overlays.
+-- Open the current review: its checkout, the browser, the overlays.
 local function open_review()
   local core, git, ui = require("reviewer.core"), require("reviewer.git"), require("reviewer.ui")
   git.clear_cache()
@@ -51,7 +51,7 @@ local function open_review()
       pcall(vim.api.nvim_buf_call, buf, function() vim.cmd("silent! edit!") end)
     end
   end
-  require("reviewer.panel").open()
+  require("reviewer.browser").open({ dir = "" })
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(buf) then require("reviewer.review").attach(buf) end
   end
@@ -141,7 +141,7 @@ end
 local need_project = need_review
 
 M.commands = {
-  panel = function() if need_project() then require("reviewer.panel").toggle() end end,
+  browse = function(dir) if need_project() then require("reviewer.browser").open({ dir = dir ~= "" and dir or nil }) end end,
   next = function() if need_project() then require("reviewer.review").move(1) end end,
   prev = function() if need_project() then require("reviewer.review").move(-1) end end,
   next_unread = function() if need_project() then require("reviewer.review").move(1, true) end end,

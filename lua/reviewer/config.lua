@@ -36,7 +36,7 @@ M.defaults = {
     timeout_ms = 10 * 60 * 1000,
     max_parallel = 2,
   },
-  -- When Claude runs. Everything else is on demand (panel actions, keys, commands).
+  -- When Claude runs. Everything else is on demand (browser keys, commands).
   ai = {
     -- When a review starts: "ask" (offer to prepare it), "step" (prepare it
     -- without asking), or "never".
@@ -55,12 +55,10 @@ M.defaults = {
   hide_generated = true,
   order = "reading", -- "reading" (groups) or "tree" (folders)
   comment_width = 100, -- maximum width of a comment box
-  panel = {
-    position = "left", -- "left" or "right"
-    width = 48,
+  browser = {
+    view = "folders", -- "folders" (one folder at a time, like oil) or "reading" (all files in reading order)
     icons = true, -- file icons from mini.icons or nvim-web-devicons, when installed
-    show_actions = true, -- action lines at the top (prepare, overview, quizzes)
-    show_file_summary = true, -- summary of the current file at the bottom
+    show_unchanged = false, -- also list files the review does not change, dimmed
   },
   float = {
     border = "rounded",
@@ -89,27 +87,21 @@ M.defaults = {
       ask = "<leader>ra", -- normal or visual mode
       explain = "<leader>re", -- Claude's comments on the file
       about = "<leader>ri",
+      browse = "-", -- open the review browser on the file's folder (like oil's "-")
     },
-    -- in the file panel. Defaults avoid keys that move the cursor or search,
-    -- so j/k, w/b/e, f/t, n/N, gg/G, / and ? keep working.
-    panel = {
-      open = { "<CR>", "o" }, -- open a file, fold a group, run an action line
-      fold = { "<Tab>", "za" },
-      toggle_read = "x", -- file, group or folder
-      read_next = "X",
-      toggle_order = "s", -- reading order / folders
-      toggle_generated = "i",
-      toggle_hide_read = "r",
-      new_review = "p", -- review another pair of branches
-      explain = "c", -- comment the file under the cursor
-      explain_group = "C", -- comment every file of the group/folder under the cursor
-      about = "a",
-      prepare = "A", stop = "D",
-      overview = "O",
-      quiz = "Q",
-      progress = "P", notes = "gn",
-      toggle_comments = "gc",
-      close = "q", help = "g?",
+    -- in the review browser. Its text is editable (read marks), so defaults
+    -- leave every editing and moving key alone and use oil-like keys and g-keys.
+    browser = {
+      open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
+      preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
+      toggle_view = "gs", -- folders / all files in reading order
+      toggle_unchanged = "g.", toggle_generated = "gG",
+      explain = "gC", -- Claude's comments on the file under the cursor
+      explain_folder = "gF", -- comment every file of the folder under the cursor
+      about = "gK",
+      prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
+      progress = "gL", notes = "gN", new_review = "gB",
+      help = "g?",
     },
     quiz = {
       choices = "abcdef", -- one key per choice; "" to use only toggle_choice

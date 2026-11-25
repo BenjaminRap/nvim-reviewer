@@ -64,7 +64,10 @@ function M.start(base, head)
   end
   local switching = M.step and M.step.id ~= review.id
   M.project, M.step = repo, review
-  if switching then M.forget_buffers() end
+  if switching then
+    M.forget_buffers()
+    require("reviewer.browser").wipe()
+  end
   local st = state.get(repo)
   st.ui.last = { base = review.base_branch, head = review.branch }
   st.reviews = st.reviews or {}
@@ -112,7 +115,7 @@ function M.group_of(file)
   return { label = "Other", order = 98 }
 end
 
--- Files of the step in panel order, honouring the filters.
+-- Files of the review in display order, honouring the filters.
 function M.ordered(step, opts)
   step = step or M.step
   opts = opts or {}

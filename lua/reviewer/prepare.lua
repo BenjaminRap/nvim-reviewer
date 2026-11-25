@@ -363,7 +363,7 @@ function M.command(args, bang)
   M.step(core.step, { force = bang, stages = stages })
 end
 
--- Comment only some files (from a panel group or folder).
+-- Comment only some files (from a folder or group of the browser).
 function M.paths(step, paths)
   local set = {}
   for _, p in ipairs(paths) do set[p] = true end
@@ -403,7 +403,7 @@ function M.offer_on_start()
   local choices = {
     { id = "step", label = "Prepare this review: overview, comments on every file, quiz" },
     { id = "overview", label = "Only the overview of the changes (one call)" },
-    { id = "no", label = "Not now (use the actions at the top of the panel)" },
+    { id = "no", label = "Not now (g? in the browser lists the actions)" },
   }
   vim.ui.select(choices, {
     prompt = ("Run Claude on %s? Now: %s"):format(step.label, desc),
