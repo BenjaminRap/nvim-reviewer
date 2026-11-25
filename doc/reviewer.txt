@@ -1,0 +1,496 @@
+*reviewer.txt*  Review the changes of a branch, file by file
+
+==============================================================================
+CONTENTS                                                   *reviewer-contents*
+
+  1. Introduction ............................... |reviewer-intro|
+  2. Starting a review .......................... |reviewer-start|
+  3. The browser ................................ |reviewer-browser|
+  4. Reviewed files ............................. |reviewer-files|
+  5. Claude ..................................... |reviewer-claude|
+  6. Quizzes .................................... |reviewer-quiz|
+  7. Progress ................................... |reviewer-progress|
+  8. Commands ................................... |reviewer-commands|
+  9. Options .................................... |reviewer-options|
+ 10. Keys ....................................... |reviewer-keys|
+ 11. Highlight groups ........................... |reviewer-highlights|
+ 12. Saved data ................................. |reviewer-data|
+
+==============================================================================
+1. INTRODUCTION                                               *reviewer-intro*
+
+nvim-reviewer shows what a branch changes compared with another one, in your
+real editor: LSP, search and your usual mappings keep working.
+
+- Each changed file opens as a normal buffer, read-only by default. Added
+  lines are highlighted and removed lines are drawn in place, in red. The
+  file itself is never modified.
+- An oil-like browser lists the changed files one folder at a time. Read
+  marks are text: change `[ ]` into `[x]`, then |:w|.
+- Claude Code can comment every file, answer your questions about the code,
+  and write a quiz, from the big picture down to single lines.
+
+Requirements: Neovim 0.10 or newer, git, and Claude Code (`claude` on your
+`PATH`, logged in) for everything that uses Claude. Without Claude Code,
+reviewing and choice questions still work.
+
+Claude calls go through `claude -p` and use your own Claude Code account and
+usage. Code from the files you review is sent to Claude.
+
+Run |:checkhealth| `reviewer` from inside a repository to check the setup.
+
+==============================================================================
+2. STARTING A REVIEW                                          *reviewer-start*
+
+From anywhere inside a git repository:
+
+  `:Review main feature`   review `feature` compared with `main`
+  `:Review feature`        compare `feature` with the default base
+                         (|reviewer-option-base|, `main` by default)
+  `:Review`                continue the last review, or pick the branches
+
+Branch names complete with <Tab>. They are read on the remote: `feature` means
+`origin/feature` when it exists, so you review what was pushed. A name that
+exists only locally is used as is; `refs/heads/feature` forces the local
+branch. |:ReviewFetch| gets the latest commits.
+
+A review is identified by its two branches, `main..feature`. Read marks,
+Claude's comments, quiz answers and questions are saved per review, so you
+can come back to it later. When branches are built on top of each other,
+review them one pair at a time.
+
+                                                         *reviewer-checkout*
+The files of a review must exist on disk at the version of the reviewed
+branch, so that your LSP and search work on them:
+
+- Your own checkout is used when it already is on that commit.
+- Otherwise, one hidden checkout per repository (a git worktree in
+  |reviewer-option-worktree_dir|) is created the first time, then moved to
+  the reviewed branch at each new review. It is on no branch, so nothing done
+  there can affect your branches. |:ReviewClean| removes it.
+
+==============================================================================
+3. THE BROWSER                                              *reviewer-browser*
+
+`:Review` opens the browser in the current window, like `:Oil`. It lists the
+changed files of one folder:
+>
+   userManagement → classManagement · src/backend/src/routes/ · 7/116 read
+  [x] groups/  6/6
+  [ ] M auth.ts  +3 −3
+  [ ] D group.ts  +0 −32
+  [x] M user.ts  +125 −185
+<
+- Folders show how many of their changed files are read.
+- Files show their status (`A` added, `M` modified, `D` deleted, `R` renamed
+  with `← old name`), lines added and removed, `✦` when Claude commented them.
+- Deleted files are listed too; opening one shows its old content in red.
+- The title bar shows the review, the folder, files read, the quiz score,
+  and the preparation progress while |:ReviewPrepare| runs.
+
+Moving around works like oil: <CR> enters a folder or opens a file in the
+same window, `-` goes to the parent folder, `_` to the root of the review.
+<C-s>, <C-h> and <C-t> open in a split or a tab, <C-p> previews.
+
+                                                      *reviewer-read-marks*
+Read marks are text. Change `[ ]` into `[x]` (or back) with any edit: `rx`,
+|.|, a visual block, |:g|, a macro. Then |:w| saves them. Changing a folder's
+box marks every changed file inside it. |u| undoes until you save, and the
+title bar shows `[+]` while there are unsaved marks. Any other edit is
+ignored, with a message: |:w| only saves read marks, it never touches files.
+
+`gs` switches between one folder at a time and all files in reading order
+(see |reviewer-option-groups|). `g.` also lists unchanged files, dimmed, and
+`gG` shows or hides generated files (|reviewer-option-generated|).
+
+All the keys: |reviewer-keys-browser|. `g?` lists them in the browser.
+
+==============================================================================
+4. REVIEWED FILES                                             *reviewer-files*
+
+Any buffer opened on a changed file of the review gets the overlay, however
+it was opened (browser, |:edit|, a picker):
+
+- added lines: highlighted, with a `+` sign;
+- removed lines: drawn as virtual lines where they were, in red. They are not
+  text: the cursor cannot go on them, search does not find them, line numbers
+  skip them, and your LSP only sees the real file;
+- Claude's comments, above the code they explain (|reviewer-claude|);
+- a hint on the first line when the file has no comments yet.
+
+The buffer is read-only (|reviewer-option-readonly|): an edit in the hidden
+checkout would be on no branch, and an edit in your own checkout would change
+your working copy. |:ReviewEdit| unlocks the current file if you need to.
+
+Keys in reviewed files: |reviewer-keys-file|. `]c`/`[c` move between changes,
+`]f`/`[f` between files in reading order, `-` goes back to the browser on the
+file's folder with the cursor on it.
+
+==============================================================================
+5. CLAUDE                                                    *reviewer-claude*
+
+Claude only runs when you ask, unless |reviewer-option-ai| says otherwise.
+When a review starts, the plugin shows what is already prepared and offers to
+prepare it.
+
+Comments on a file ~
+`<leader>re` in a file, `gC` in the browser, or |:ReviewExplain| writes a
+summary of the file, what changed, and a comment above each changed block.
+They are saved and tied to the diff they describe; they are written again
+only if the diff changes or on request (|:ReviewExplain|!).
+
+Preparing a review ~
+|:ReviewPrepare| prepares the current review in the background:
+  1. an overview: summary, main flows, key concepts, things to check
+     carefully, and the role of each file (|:ReviewOverview|, `gO`);
+  2. comments on every file, a few files per call, with the overview as
+     context; Claude can open other files of the repo;
+  3. a quiz. Each question is checked locally: every `file:line` reference
+     must exist on the reviewed branch and every line of a code snippet must
+     be in the referenced files. Questions that fail are dropped.
+It can be stopped (`:ReviewPrepare stop`, `gS`) and run again: files already
+commented for the same diff are skipped. Each stage can run alone:
+`:ReviewPrepare overview`, `comments` or `quiz`. An existing quiz is kept
+unless you add `!`. The cost reported by Claude Code is shown while it runs.
+
+Questions ~
+`<leader>ra` in normal or visual mode, or |:ReviewAsk|, asks Claude about the
+file or the selected lines. Claude runs in the checkout of the reviewed
+branch with read-only tools, so it can open any file of the repo. Answers
+open in a float and are saved: |:ReviewAsks| lists them.
+
+What Claude sees ~
+  overview      commits, file list, diffs, read access to the repo
+  comments      the whole file with its changes, the overview, read access
+  questions     the file with its changes, the selection, the overview,
+                read access to the repo
+  grading       the question, the reference answer, the code around the
+                question's references
+
+Models: |reviewer-option-claude|.
+
+==============================================================================
+6. QUIZZES                                                     *reviewer-quiz*
+
+|:ReviewQuiz| opens the quiz of the current review. If there is none yet, it
+offers to have Claude write it. `:ReviewQuiz list` picks another review's
+quiz, `:ReviewQuiz mistakes` retries every wrong or partly right answer of
+all quizzes.
+
+Questions go from the big picture to single lines, in five levels:
+architecture, flows and design, files and responsibilities, implementation,
+line-level details. They have one answer, several answers, or an open answer
+written in your own words, graded by Claude against a reference answer
+(|reviewer-option-ai|: `grade_open_answers = false` to grade yourself).
+
+After an answer, the quiz shows the right answer, an explanation, and the
+code the question refers to: `1`-`4` open it. You can ask Claude for a hint
+before answering (`gh`) or for an explanation after (`x`). Every answer is
+saved with its history. Keys: |reviewer-keys-quiz|.
+
+                                                          *reviewer-quiz-file*
+Quizzes are JSON files `quiz-<base>..<branch>.json` in the repository's quiz
+folder (|reviewer-data|). |:ReviewPrepare| writes them; you can also write
+them yourself:
+>json
+  {
+    "id": "main..feature",
+    "title": "main → feature",
+    "ref": "origin/feature",
+    "questions": [
+      {
+        "id": "main..feature-q01",
+        "level": 1,
+        "topic": "Scope",
+        "type": "single",
+        "prompt": "What does this branch add?",
+        "code": "optional snippet",
+        "codeLang": "typescript",
+        "choices": ["...", "...", "...", "..."],
+        "answer": [1],
+        "reference": "Short model answer (the full one for open questions)",
+        "explanation": "Why",
+        "refs": [{ "path": "src/app.ts", "line": 12, "endLine": 20 }]
+      }
+    ]
+  }
+<
+`type` is `single`, `multi` or `open`. `answer` holds 0-based indexes and is
+left out for open questions. Question ids must be unique across the quizzes
+of a repository, because answers are saved by id.
+
+==============================================================================
+7. PROGRESS                                                *reviewer-progress*
+
+|:ReviewProgress| shows every review of the repository with files read and
+quiz results, your mistakes, and the questions you asked Claude. <CR> on a
+line opens it: a review, a question to answer again, or an answer from Claude.
+Keys: |reviewer-keys-progress|.
+
+==============================================================================
+8. COMMANDS                                                *reviewer-commands*
+
+:Review [{base}] [{branch}]                                           *:Review*
+    Start a review and open the browser (|reviewer-start|).
+
+:ReviewBrowse [{folder}]                                        *:ReviewBrowse*
+    Open the browser in the current window, at the root or on {folder}.
+
+:ReviewNext                                                       *:ReviewNext*
+:ReviewPrev                                                       *:ReviewPrev*
+:ReviewNextUnread                                           *:ReviewNextUnread*
+    Open the next or previous file of the review in reading order, or the
+    next unread one.
+
+:ReviewRead                                                       *:ReviewRead*
+    Toggle the read mark of the current file.
+
+:ReviewReadNext                                               *:ReviewReadNext*
+    Mark the current file read and open the next unread file.
+
+:ReviewEdit                                                       *:ReviewEdit*
+    Allow changes in the current reviewed file (read-only by default).
+
+:ReviewExplain[!]                                              *:ReviewExplain*
+    Write Claude's comments on the current file if it has none. With [!],
+    write them again.
+
+:ReviewComments                                               *:ReviewComments*
+    Show or hide Claude's comments.
+
+:ReviewAbout                                                     *:ReviewAbout*
+    Summary, what changed, and commits of the current file.
+
+:[range]ReviewAsk                                                  *:ReviewAsk*
+    Ask Claude about the current file, or about the lines in [range].
+
+:ReviewAsks                                                       *:ReviewAsks*
+    The questions you asked Claude, with the answers.
+
+:ReviewPrepare[!] [overview|comments|quiz|stop]              *:ReviewPrepare*
+    Prepare the review in the background (|reviewer-claude|). With [!],
+    write the overview, comments and quiz again. `stop` stops it.
+
+:ReviewOverview                                               *:ReviewOverview*
+    Overview of the changes: summary, flows, key concepts, things to check,
+    role of each file.
+
+:ReviewQuiz [list|mistakes]                                       *:ReviewQuiz*
+    Quiz of the current review, another review's quiz (`list`), or every
+    mistake to retry (`mistakes`).
+
+:ReviewProgress                                               *:ReviewProgress*
+    Every review of the repository and what is remembered.
+
+:ReviewFetch                                                     *:ReviewFetch*
+    `git fetch`, then show the latest commits of the reviewed branches.
+
+:ReviewClean                                                     *:ReviewClean*
+    Remove the hidden checkout of the repository. Your progress is kept.
+
+==============================================================================
+9. OPTIONS                                                  *reviewer-options*
+
+Pass options to `require("reviewer").setup()`, or as `opts` with lazy.nvim.
+Only what you set changes; lists replace the default list.
+>lua
+  require("reviewer").setup({
+    repos = {
+      myproject = { generated = { "^src/generated/" } },
+    },
+    keymaps = { file = { browse = "<leader>e" } },
+  })
+<
+repos                                                *reviewer-option-repos*
+    Optional settings per repository, keyed by the repository's folder name
+    (or give `root` to match a path). Each can set `remote`, `base`,
+    `generated`, `groups`, `worktree` and `quiz_dir`. Default: `{}`.
+
+remote                                              *reviewer-option-remote*
+    Branch names are read as `<remote>/<name>` when that ref exists.
+    Default: `"origin"`.
+
+base                                                  *reviewer-option-base*
+    Base branch when |:Review| gets only one branch. Default: `"main"`.
+
+worktree_dir                                  *reviewer-option-worktree_dir*
+    Where the hidden checkouts go, one per repository.
+    Default: `stdpath("cache") .. "/reviewer"`.
+
+readonly                                          *reviewer-option-readonly*
+    Reviewed files cannot be changed (|:ReviewEdit| unlocks one).
+    Default: `true`.
+
+show_comments                                *reviewer-option-show_comments*
+    Show Claude's comments above the code. Default: `true`.
+
+show_removed                                  *reviewer-option-show_removed*
+    Show removed lines in place. Default: `true`.
+
+hide_generated                              *reviewer-option-hide_generated*
+    Hide generated files in the browser (`gG` toggles). Default: `true`.
+
+generated                                        *reviewer-option-generated*
+    Lua patterns of generated files. Default: lockfiles of npm, yarn, pnpm.
+    A repository's `generated` list is added to it.
+
+groups                                              *reviewer-option-groups*
+    Reading order: a list of `{ label, order, patterns }`. The first group
+    whose Lua pattern matches a path wins; `order` sorts the groups.
+    Default: database and migrations, shared code, backend, frontend, then
+    tests, then the rest.
+
+comment_width                                *reviewer-option-comment_width*
+    Maximum width of a comment box. Default: `100`.
+
+browser                                            *reviewer-option-browser*
+    `view`            `"folders"` or `"reading"`. Default: `"folders"`.
+    `icons`           icons from mini.icons or nvim-web-devicons, when
+                    installed. Default: `true`.
+    `show_unchanged`  also list unchanged files, dimmed (`g.` toggles).
+                    Default: `false`.
+
+float                                                *reviewer-option-float*
+    `border`      border of floats. Default: `"rounded"`.
+    `width`       fraction of the editor, or columns when > 1. Default: `0.8`.
+    `height`      fraction of the editor, or lines when > 1. Default: `0.8`.
+    `text_width`  wrap width of text in floats. Default: `96`.
+
+symbols                                            *reviewer-option-symbols*
+    `read` `"x"`, `unread` `" "`, `partly_read` `"-"`: browser checkboxes.
+    `added` `"+"`, `removed` `"-"`: signs in reviewed files.
+    `removed_prefix` `"- "`: before each removed line shown in place.
+    `comment` `"✦"`, `pending` `"…"`.
+
+ai                                                      *reviewer-option-ai*
+    When Claude runs:
+    `on_start`            when a review starts: `"ask"` (offer to prepare
+                        it), `"step"` (prepare it), `"never"`.
+                        Default: `"ask"`.
+    `comment_on_open`     comment a file the first time it is opened.
+                        Default: `false`.
+    `prefetch_next`       then also comment the next unread file.
+                        Default: `false`.
+    `offer_missing_quiz`  offer to write a missing quiz. Default: `true`.
+    `grade_open_answers`  Claude grades open answers; `false` to grade
+                        yourself. Default: `true`.
+
+claude                                              *reviewer-option-claude*
+    `cmd`             the Claude Code executable. Default: `"claude"`.
+    `models`          model per use: `overview` (`"opus"`), `comments`
+                    (`"sonnet"`), `quiz` (`"opus"`), `ask` (`"opus"`),
+                    `grade` (`"sonnet"`). An alias accepted by
+                    `claude --model` or a full model name; `false` uses
+                    your Claude Code default.
+    `model`           for any use without its own model. Setting `model`
+                    without `models` uses it for everything. Default: `nil`.
+    `fallback_model`  used when the chosen model is busy or not on your
+                    plan. Default: `"sonnet"`.
+    `explain_tools`, `ask_tools`, `prepare_tools`
+                    tools Claude may use; `""` for none.
+                    Default: `"Read,Grep,Glob"`.
+    `grade_tools`     Default: `""`.
+    `batch_files`, `batch_chars`
+                    size of one batch of files when preparing.
+                    Default: `6` files, `60000` characters.
+    `max_parallel`    calls running at the same time. Default: `2`.
+    `timeout_ms`      Default: 10 minutes.
+    `extra_args`      more arguments for `claude`. Default: `{}`.
+
+keymaps                                            *reviewer-option-keymaps*
+    Every key, per place: `file`, `browser`, `quiz`, `progress`, `float`,
+    `input`. A key is a string, a list of strings, or `false` to disable it.
+    Defaults: |reviewer-keys|.
+
+==============================================================================
+10. KEYS                                                        *reviewer-keys*
+
+The browser and quiz defaults leave the keys that move the cursor or search
+alone, so you move in them as in any buffer.
+
+In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
+  `]c` `[c`        next / previous change              `next_change` ...
+  `]f` `[f`        next / previous file                `next_file` ...
+  `<leader>rr`     toggle read                         `toggle_read`
+  `<leader>rn`     mark read, open next unread         `read_next`
+  `<leader>ra`     ask Claude (normal or visual)       `ask`
+  `<leader>re`     Claude's comments on the file       `explain`
+  `<leader>ri`     about the file                      `about`
+  `-`              browser on the file's folder        `browse`
+
+In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
+  <CR>           enter a folder / open a file        `open`
+  <C-s> <C-h>    open in a vertical / horizontal split `open_vsplit` ...
+  <C-t>          open in a new tab                   `open_tab`
+  <C-p>          preview                             `preview`
+  `-` `_`          parent folder / root                `parent` `root`
+  `gs`             folders / reading order             `toggle_view`
+  `g.`             show unchanged files                `toggle_unchanged`
+  `gG`             show generated files                `toggle_generated`
+  <C-l>          refresh                             `refresh`
+  `gC`             comment the file                    `explain`
+  `gF`             comment the folder's files          `explain_folder`
+  `gK`             about the file                      `about`
+  `gA` `gS`          prepare / stop                      `prepare` `stop`
+  `gO`             overview                            `overview`
+  `gQ`             quiz                                `quiz`
+  `gL`             progress                            `progress`
+  `gB`             review other branches               `new_review`
+  `g?`             help                                `help`
+  edit `[ ]`, then |:w|   save read marks
+
+In a quiz (`keymaps.quiz`)                            *reviewer-keys-quiz*
+  `a`-`f`            pick a choice                       `choices`
+  <Space>        toggle the choice under the cursor  `toggle_choice`
+  <CR>           check, then next question           `check`
+  `i`              write an open answer                `answer`
+  `d`              don't know                          `dont_know`
+  `J` `K`            next / previous question            `next` `prev`
+  `r`              try again                           `retry`
+  `gh`             hint                                `hint`
+  `x`              ask Claude why                      `explain`
+  `o`              results by level                    `overview`
+  `1`-`4`            open the code of a reference        `refs`
+  `+` `~` `-`          grade yourself                      `self_correct` ...
+  `q` <Esc>        close (|:ReviewQuiz| resumes)         `close`
+
+In the progress view (`keymaps.progress`)         *reviewer-keys-progress*
+  <CR>           open the line                       `open`
+  `m`              retry all mistakes                  `retry_mistakes`
+  `A`              questions asked                     `asks`
+
+Floats (`keymaps.float`, `keymaps.input`)
+  `q` <Esc>        close a float                       `close`
+  <C-s>          save an input (or <CR> in normal)   `submit` `submit_normal`
+  `q` <Esc>        cancel an input                     `cancel`
+
+==============================================================================
+11. HIGHLIGHT GROUPS                                      *reviewer-highlights*
+
+Every colour comes from a group linked to a standard one, so the plugin
+follows your colorscheme. Override any of them with |nvim_set_hl()|.
+
+  ReviewerAdd, ReviewerAddSign          added lines (DiffAdd, Added)
+  ReviewerDelete, ReviewerDeleteSign    removed lines (DiffDelete, Removed)
+  ReviewerComment, ReviewerCommentTitle Claude's comments
+                                        (DiagnosticVirtualTextInfo,
+                                        DiagnosticInfo)
+  ReviewerHeader, ReviewerGroup         titles, reading-order groups (Title)
+  ReviewerRead, ReviewerDim             read files, secondary text (Comment)
+  ReviewerCurrent                       the file you are on (CursorLine)
+  ReviewerOk, ReviewerPartial,          results and warnings
+  ReviewerBad                           (DiagnosticOk, Warn, Error)
+
+==============================================================================
+12. SAVED DATA                                                 *reviewer-data*
+
+Everything is kept between sessions, per repository, in
+`stdpath("data")/reviewer/<repo>/`:
+
+  `state.json`     read marks, quiz answers with their history, questions
+                 asked to Claude, the last review
+  `explain.json`   overviews and Claude's comments per file, tied to the
+                 diff they were written for
+  `quizzes/`       quiz files (|reviewer-quiz-file|)
+
+ vim:tw=78:ts=8:ft=help:norl:

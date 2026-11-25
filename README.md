@@ -46,7 +46,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 For a local copy, use `dir = "~/path/to/nvim-reviewer"` instead of the GitHub name.
 
-Run `:checkhealth reviewer` from inside a repository to check git, Claude Code, the default base branch and the last review.
+`:help reviewer` has the full documentation inside Neovim. Run `:checkhealth reviewer` from inside a repository to check git, Claude Code, the default base branch and the last review.
 
 ## Starting a review
 
@@ -214,7 +214,6 @@ require("reviewer").setup({
   show_removed = true,          -- removed lines shown in place, in red
   readonly = true,              -- reviewed files cannot be changed (:ReviewEdit unlocks one)
   hide_generated = true,
-  order = "reading",            -- or "tree"
   comment_width = 100,          -- maximum width of a comment box
   browser = {
     view = "folders",           -- or "reading" (all files in reading order)
@@ -228,10 +227,8 @@ require("reviewer").setup({
   },
   symbols = {
     read = "x", unread = " ", partly_read = "-",
-    fold_open = "▾", fold_closed = "▸",
     added = "+", removed = "-", removed_prefix = "- ",
     comment = "✦", pending = "…",
-    action = "▶", stop = "■",
   },
   keymaps = {
     -- a string, a list of strings, or false to disable; only what you set changes
