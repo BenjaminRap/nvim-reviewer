@@ -1,0 +1,257 @@
+# stackreview.nvim
+
+Review a stack of branches in Neovim, one step at a time, file by file, in your real editor (LSP, search and your usual mappings all work).
+
+When branches are built on top of each other (`main → feature-a → feature-b → feature-c`), each step is reviewed against the step before it, so you only see that step's own changes.
+
+- **A whole step prepared in advance.** `:ReviewPrepare` has Claude read the step as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz on the step that is checked locally.
+- **Full file with its changes.** Each file opens as a normal buffer. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
+- **Claude's comments.** The first time you open a file, Claude Code writes a summary and a comment above each change block. Comments are saved, so each file is commented once.
+- **Read marks.** You can mark files, groups or whole folders as read in a side panel, with a reading order (database → shared → backend → frontend → tests) or a folder tree.
+- **Notes on lines**, of three kinds: note, question to come back to, issue to fix. They appear in the sign column and at the end of the line.
+- **Questions to Claude** about a file or selected lines. Claude runs in that step's checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
+- **Quizzes** per step and for the whole stack, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
+- **Progress view.** Shows files read, quiz results, mistakes, the questions you asked, and open notes.
+
+Everything is saved per project in `stdpath("data")/stackreview/<project>/` and kept between sessions.
+
+## Requirements
+
+- Neovim 0.10 or newer
+- git
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude` on your `PATH`, logged in). It is used for comments, questions and open-answer grading. Without it, reviewing, notes and choice questions still work.
+
+Claude calls go through `claude -p` and use your own Claude Code account and usage. Code from the files you review is sent to Claude.
+
+## Install
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  "BenjaminRap/nvim-reviewer",
+  main = "stackreview",
+  cmd = { "Review", "ReviewQuiz", "ReviewProgress", "ReviewNotes", "ReviewAsks" },
+  opts = {
+    projects = {
+      myproject = {
+        root = "~/code/myproject",
+        remote = "origin",          -- refs are read as <remote>/<branch>
+        base = "main",
+        stack = { "feature-a", "feature-b", "feature-c" },
+        labels = { ["feature-c"] = "feature-c (payments)" }, -- optional display names
+        generated = { "^src/generated/" }, -- hidden by default (Lua patterns)
+        -- worktrees = "~/code/myproject-review", -- default: next to the repo
+        -- quiz_dir = "...",                      -- default: stdpath("data")/stackreview/<name>/quizzes
+        -- groups = { ... },                      -- reading order, see below
+      },
+    },
+  },
+}
+```
+
+For a local copy, use `dir = "~/path/to/stackreview.nvim"` instead of the GitHub name.
+
+Run `:checkhealth stackreview` to check git, Claude Code, the refs of every step and the quiz files.
+
+## How the files are opened
+
+Each step needs a checkout of the code at its head:
+
+- If your main checkout already sits on that commit, it is used.
+- Otherwise a **detached git worktree** is created next to the repo (by default `<repo>-review/<n>-<branch>`) the first time you open a file of that step.
+
+Worktrees are local folders, so nothing is pushed. Remove them with `git worktree remove <dir>` when the review is over.
+
+`:ReviewFetch` runs `git fetch` and moves the step worktrees to their branch's new head, as long as they have no local changes.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `:Review [project]` | Start: opens the file panel (project picked from the current directory if not given) |
+| `:ReviewStep {n}` | Go to step n |
+| `:ReviewPanel` | Toggle the file panel |
+| `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the step's files |
+| `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
+| `:ReviewExplain[!]` | Write Claude's comments on the current file if it has none (`!` writes them again) |
+| `:ReviewComments` | Show or hide Claude's comments |
+| `:ReviewAbout` | Summary, what changed, and commits of the current file |
+| `:[range]ReviewNote` | Add a note on the line or range |
+| `:ReviewNotes` | List notes: open, resolve, edit, delete |
+| `:[range]ReviewAsk` | Ask Claude about the file or the lines |
+| `:ReviewAsks` | Questions you asked, with Claude's answers |
+| `:ReviewPrepare[!] [n\|final\|all\|stop] [overview\|comments\|quiz]` | Prepare a step in the background (see below) |
+| `:ReviewOverview` | Overview of the current step: summary, flows, key concepts, things to check, role of each file |
+| `:ReviewQuiz [n\|final\|mistakes]` | Take a quiz, continue it, or retry mistakes |
+| `:ReviewProgress` | Everything remembered, with links |
+| `:ReviewFetch` | Fetch and update the step worktrees |
+
+## When Claude runs
+
+Claude only runs when you ask, unless you configure otherwise (`ai` options).
+
+- **When you start `:Review`,** the plugin shows what is already prepared for the current step and offers to prepare it: the whole step, only the overview, every step, or not now. With `ai.on_start` you can always prepare, prepare everything, or never ask.
+- **Action lines at the top of the panel** (press `<CR>` on a line, or its key):
+  - `A` prepares the step, and `S` stops it.
+  - `O` opens the step overview, writing it first if needed.
+  - `Q` and `F` open the step quiz and the final quiz, and offer to write them if they don't exist yet.
+  - `e` comments the current file.
+- **In a reviewed file,** a hint on the first line tells you when it has no comments yet. `<leader>re` writes them, and asks before writing them again.
+- **Automatic comments on open:** set `ai.comment_on_open = true`, plus `ai.prefetch_next` to also comment the next unread file in the background.
+- **Your questions and quiz hints** run when you ask them. Open answers are graded by Claude unless `ai.grade_open_answers = false`.
+
+## Preparing a step
+
+`:ReviewPrepare 2` prepares step 2 in the background, in three stages:
+
+1. **Overview.** One call reads the step as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, and one line per file on its role.
+2. **Comments on every file.** Files are sent a few at a time (`batch_files`, `batch_chars`), together with the overview, so comments can explain how a file fits with the rest of the step. Claude can open and search other files of the repo at that step.
+3. **Quiz.** About 20 to 65 questions depending on the size of the step. Each question is then checked locally: every `file:line` reference must exist at the step's head, and every line of a code snippet must be found in the referenced files. Questions that fail are dropped, and the result says how many.
+
+Details:
+
+- **Stop and resume.** You can stop at any time with `:ReviewPrepare stop` and run it again later. Files already commented for the same diff are skipped.
+- **Progress and cost.** The panel shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call.
+- **Single stages.** `:ReviewPrepare 2 comments` runs one stage only.
+- **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.
+- **`:ReviewPrepare all`** prepares every step in turn, then the final quiz.
+- **`:ReviewPrepare final`** writes the quiz on the whole stack from the step overviews and the final code.
+- **In the panel:** `E` on a group, folder or file comments just those files, and `O` shows the overview.
+
+Without preparation, you can comment files one at a time (`e` in the panel, `<leader>re` in the file), or turn on `ai.comment_on_open`. The overview is used as context whenever it exists.
+
+### What Claude sees
+
+| Use | Context |
+|---|---|
+| Overview | Commits, file list, diffs (capped), read access to the repo at the step's head |
+| Comments | The whole file with its changes, the step overview and file roles, read access to the repo |
+| Your questions | The file with its changes, the selected lines, the overview, read access to the repo |
+| Open-answer grading | The question, the reference answer, the code around the question's references |
+
+## Keys
+
+In a reviewed file (buffer-local, configurable with `keymaps`, set one to `false` to disable it):
+
+| Key | Action |
+|---|---|
+| `]c` / `[c` | Next / previous change |
+| `]f` / `[f` | Next / previous file of the step |
+| `<leader>rr` | Toggle read |
+| `<leader>rn` | Mark read and open the next unread file |
+| `<leader>rN` | Add a note (normal or visual) |
+| `<leader>ra` | Ask Claude (normal or visual) |
+| `<leader>re` | Write Claude's comments (asks before writing them again) |
+
+In the panel: `<CR>` open a file or run an action line, `A` prepare the step, `S` stop, `O` overview, `Q` step quiz, `F` final quiz, `x` toggle read (file, group or folder), `<Tab>` fold, `n` read & next, `t` reading order or folders, `g` generated files, `h` hide read files, `s` / `]s` / `[s` steps, `e` comment the file, `E` comment every file of the group or folder, `a` about, `P` progress, `N` notes, `C` comments, `q` close, `?` help.
+
+In a quiz: `a`–`f` pick, `<CR>` check, `i` write an open answer, `d` don't know, `H` hint, `x` ask Claude why, `1`–`4` open the code a question refers to, `n` / `p` next / previous, `r` retry, `o` results by level, `+` `~` `-` grade yourself when Claude cannot, `q` close (`:ReviewQuiz` resumes).
+
+## Options
+
+```lua
+require("stackreview").setup({
+  projects = { ... },
+  claude = {
+    cmd = "claude",
+    models = {                  -- model per use (see "Models" below)
+      overview = "opus", comments = "sonnet", quiz = "opus",
+      final = "opus", ask = "opus", grade = "sonnet",
+    },
+    model = nil,                -- for any use without its own model; nil = Claude Code's default
+    fallback_model = "sonnet",  -- if the chosen model is busy or not on your plan
+    explain_tools = "Read,Grep,Glob", -- tools allowed when commenting ("" = none, faster and cheaper)
+    ask_tools = "Read,Grep,Glob",     -- read-only tools for questions
+    grade_tools = "",
+    prepare_tools = "Read,Grep,Glob", -- for :ReviewPrepare
+    batch_files = 6,                  -- files per call when preparing
+    batch_chars = 60000,
+    max_parallel = 2,
+    timeout_ms = 600000,
+  },
+  ai = {
+    on_start = "ask",           -- on :Review: "ask", "step" (prepare it), "all", or "never"
+    comment_on_open = false,    -- comment a file automatically the first time it is opened
+    prefetch_next = false,      -- then also comment the next unread file
+    offer_missing_quiz = true,  -- offer to write a quiz you open that does not exist yet
+    grade_open_answers = true,  -- false: you grade open answers yourself
+  },
+  show_comments = true,
+  hide_generated = true,
+  order = "reading",            -- or "tree"
+  panel = { width = 48 },
+  generated = { "package%-lock%.json$", "yarn%.lock$", "pnpm%-lock%.yaml$" },
+  groups = {                    -- reading order; first matching group wins, `order` sorts them
+    { label = "Tests", order = 90, patterns = { "/tests?/", "%.test%." } },
+    { label = "Database", order = 10, patterns = { "^prisma/", "migrations?/" } },
+    -- ...
+    { label = "Other", order = 95, patterns = { "" } },
+  },
+})
+```
+
+### Models
+
+Each use of Claude has its own model. The defaults keep the strongest model where there are few calls and accuracy matters, and use a cheaper one where there are many calls:
+
+| Use | Default | Why |
+|---|---|---|
+| `overview` | `opus` | One call per step; its summary is the context for every other call |
+| `comments` | `sonnet` | One call per file or batch of files, so most of the calls |
+| `quiz` | `opus` | One call per step; questions must be exact |
+| `final` | `opus` | The final quiz on the whole stack |
+| `ask` | `opus` | Your questions and quiz hints |
+| `grade` | `sonnet` | Short check of an open answer against a reference answer |
+
+Values are aliases accepted by `claude --model` (`opus`, `sonnet`, `haiku`) or full model names.
+
+- **Changing one use:** set it, e.g. `models = { comments = "haiku" }`; the other uses keep their defaults.
+- **Using your Claude Code default:** set a use to `false`.
+- **One model for everything:** set `claude.model` without `models`.
+- **If a model is busy or not on your plan,** `fallback_model` is used instead.
+
+Highlight groups (linked by default, override them in your colorscheme): `StackReviewAdd`, `StackReviewDelete`, `StackReviewComment`, `StackReviewNote`, `StackReviewQuestion`, `StackReviewIssue`, `StackReviewCurrent`, `StackReviewRead`.
+
+## Quiz files
+
+Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each step quiz has the id `step<n>`, and `final` is the quiz on the whole stack:
+
+```json
+{
+  "id": "step1",
+  "title": "feature-a",
+  "ref": "origin/feature-a",
+  "questions": [
+    {
+      "id": "s1-q01",
+      "level": 1,
+      "topic": "Scope",
+      "type": "single",
+      "prompt": "What does this step add?",
+      "code": "optional snippet",
+      "codeLang": "typescript",
+      "choices": ["...", "...", "...", "..."],
+      "answer": [1],
+      "reference": "Short model answer (the full model answer for open questions)",
+      "explanation": "Why",
+      "refs": [{ "path": "src/app.ts", "line": 12, "endLine": 20 }]
+    }
+  ]
+}
+```
+
+- **`type`** is `single`, `multi` or `open`. `answer` holds 0-based indexes and is omitted for `open`.
+- **`level`** goes from 1 (architecture) to 5 (line-level details).
+- **Question ids** must be unique across all quizzes of a project, because results are saved by id.
+- **Refs** point to the code at the step's head.
+
+`:ReviewPrepare` writes these files for you. You can also write them yourself or with another tool; they go through the same checks only when written by `:ReviewPrepare`.
+
+## Saved data
+
+`stdpath("data")/stackreview/<project>/`:
+
+- `state.json`: read marks, notes, quiz attempts with their history, questions asked to Claude
+- `explain.json`: step overviews and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
+- `quizzes/`: the default place for quiz files
