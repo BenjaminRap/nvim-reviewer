@@ -1,14 +1,14 @@
 -- One view of everything remembered: files read, quiz results, mistakes,
 -- questions asked to Claude, open notes.
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local ui = require("stackreview.ui")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local ui = require("reviewer.ui")
 
 local M = {}
 
 function M.open()
   if not core.project then return ui.notify("run :Review first", vim.log.levels.WARN) end
-  local quiz = require("stackreview.quiz")
+  local quiz = require("reviewer.quiz")
   local st = state.get(core.project)
   local lines, targets = {}, {}
   local function add(t, target) lines[#lines + 1] = t ; if target then targets[#lines] = target end end
@@ -68,14 +68,14 @@ function M.open()
     local t = targets[vim.api.nvim_win_get_cursor(0)[1]]
     if not t then return end
     close()
-    if t.kind == "step" then core.set_step(t.step.id) ; require("stackreview.panel").open()
+    if t.kind == "step" then core.set_step(t.step.id) ; require("reviewer.panel").open()
     elseif t.kind == "quiz" then quiz.open(t.quiz)
     elseif t.kind == "question" then quiz.open_question(t.quiz, t.qid)
-    elseif t.kind == "ask" then require("stackreview.ask").show_answer(t.ask) end
+    elseif t.kind == "ask" then require("reviewer.ask").show_answer(t.ask) end
   end)
   map("m", function() close() ; quiz.open("mistakes") end)
-  map("N", function() close() ; require("stackreview.notes").list() end)
-  map("A", function() close() ; require("stackreview.ask").list() end)
+  map("N", function() close() ; require("reviewer.notes").list() end)
+  map("A", function() close() ; require("reviewer.ask").list() end)
 end
 
 return M

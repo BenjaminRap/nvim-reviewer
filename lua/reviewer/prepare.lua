@@ -3,13 +3,13 @@
 --   2. comments  Claude's comments on every file, a few files per call, with the overview as context
 --   3. quiz      a quiz on the step, checked locally (refs must exist, code snippets must match)
 -- Resumable: files already commented for the same diff are skipped.
-local config = require("stackreview.config")
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local git = require("stackreview.git")
-local claude = require("stackreview.claude")
-local explain = require("stackreview.explain")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local git = require("reviewer.git")
+local claude = require("reviewer.claude")
+local explain = require("reviewer.explain")
+local ui = require("reviewer.ui")
 
 local M = { jobs = {} } -- key ("1".."n" or "final") -> job
 
@@ -274,9 +274,9 @@ local function write_quiz(id, title, ref, questions)
   vim.fn.mkdir(core.project.quiz_dir, "p")
   local fh = io.open(path, "w")
   if not fh then return nil end
-  fh:write(vim.json.encode({ id = id, title = title, ref = ref, generated_by = "stackreview", at = state.now(), questions = questions }))
+  fh:write(vim.json.encode({ id = id, title = title, ref = ref, generated_by = "reviewer", at = state.now(), questions = questions }))
   fh:close()
-  require("stackreview.quiz").reload()
+  require("reviewer.quiz").reload()
   return path
 end
 

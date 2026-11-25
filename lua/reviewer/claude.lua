@@ -1,6 +1,6 @@
 -- Runs `claude -p` (Claude Code in print mode) in the background.
 -- Uses your Claude Code login and usage. Never runs tools that write.
-local config = require("stackreview.config")
+local config = require("reviewer.config")
 
 local M = {}
 

@@ -32,7 +32,7 @@ function M.changed_files(project, step)
   if cache[key] then return cache[key] end
   local ns, err = M.run({ "diff", "-M", "--numstat", step.base_ref, step.head_ref }, project.root)
   if not ns then
-    vim.notify("stackreview: git diff failed for step " .. step.id .. ": " .. err, vim.log.levels.ERROR)
+    vim.notify("reviewer: git diff failed for step " .. step.id .. ": " .. err, vim.log.levels.ERROR)
     return {}
   end
   local st = M.run({ "diff", "-M", "--name-status", step.base_ref, step.head_ref }, project.root) or ""
@@ -118,7 +118,7 @@ function M._step_dir(project, step, create)
   vim.fn.mkdir(project.worktrees, "p")
   local _, err = M.run({ "worktree", "add", "--detach", dir, step.head_ref }, project.root)
   if err then return nil, "git worktree add failed: " .. err end
-  vim.notify("stackreview: created " .. dir .. " for step " .. step.id .. " (" .. step.branch .. ")")
+  vim.notify("reviewer: created " .. dir .. " for step " .. step.id .. " (" .. step.branch .. ")")
   return dir
 end
 

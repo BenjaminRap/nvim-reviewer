@@ -1,16 +1,16 @@
 -- Quizzes from the big picture down to single lines. Choice questions are graded
 -- here; open answers are graded by Claude against a reference answer.
 -- Quiz files: <quiz_dir>/quiz-*.json, each { id, title, ref, questions = [...] }.
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local claude = require("stackreview.claude")
-local diff = require("stackreview.diff")
-local git = require("stackreview.git")
-local ui = require("stackreview.ui")
-local config = require("stackreview.config")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local claude = require("reviewer.claude")
+local diff = require("reviewer.diff")
+local git = require("reviewer.git")
+local ui = require("reviewer.ui")
+local config = require("reviewer.config")
 
 local M = { s = nil, buf = nil, win = nil }
-local ns = vim.api.nvim_create_namespace("stackreview_quiz")
+local ns = vim.api.nvim_create_namespace("reviewer_quiz")
 local LEVELS = { "Architecture", "Flows & design", "Files & responsibilities", "Implementation", "Line-level details" }
 M.LEVELS = LEVELS
 local LETTERS = "abcdef"
@@ -151,8 +151,8 @@ local function render()
       choice_lines[i] = #lines
       for j = 2, #w do add("       " .. w[j]) end
       if r then
-        if answer[i] then marks[#marks + 1] = { choice_lines[i], "StackReviewAdd" }
-        elseif s.sel[i] then marks[#marks + 1] = { choice_lines[i], "StackReviewDelete" } end
+        if answer[i] then marks[#marks + 1] = { choice_lines[i], "ReviewerAdd" }
+        elseif s.sel[i] then marks[#marks + 1] = { choice_lines[i], "ReviewerDelete" } end
       end
     end
   end
@@ -341,7 +341,7 @@ function M.open_ref(i)
   local ref = q.refs[i]
   local step = quiz_step(it.quiz)
   M.close()
-  local review = require("stackreview.review")
+  local review = require("reviewer.review")
   local f = git.find_file(core.project, step, ref.path)
   if f then
     if core.step.id ~= step.id then core.set_step(step.id) end
@@ -386,7 +386,7 @@ function M.ask(kind)
       or "Explain why my answer is wrong or incomplete, and the right reasoning, with the code.")
   local step = quiz_step(it.quiz)
   local dir = git.step_dir(core.project, step, true)
-  require("stackreview.ask").run({ kind = "quiz", quiz = it.quiz, qid = q.id, question = question_text, title = title(it.quiz) .. " · " .. q.id }, table.concat(parts, "\n"), dir)
+  require("reviewer.ask").run({ kind = "quiz", quiz = it.quiz, qid = q.id, question = question_text, title = title(it.quiz) .. " · " .. q.id }, table.concat(parts, "\n"), dir)
 end
 
 function M.overview(quiz_id)
@@ -504,7 +504,7 @@ function M.open(arg)
     if vim.uv.fs_stat(core.project.quiz_dir .. "/quiz-" .. arg .. ".json") then
       return ui.notify("could not read quiz-" .. arg .. ".json", vim.log.levels.ERROR)
     end
-    return require("stackreview.prepare").quiz_or_write(arg, function() M.reload() ; M.open(arg) end)
+    return require("reviewer.prepare").quiz_or_write(arg, function() M.reload() ; M.open(arg) end)
   end
   if M.s and M.s.quiz == arg and M.s.items[M.s.pos] then return show() end
   local s = M.stats(arg)

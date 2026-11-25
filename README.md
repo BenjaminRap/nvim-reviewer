@@ -1,4 +1,4 @@
-# stackreview.nvim
+# nvim-reviewer
 
 Review a stack of branches in Neovim, one step at a time, file by file, in your real editor (LSP, search and your usual mappings all work).
 
@@ -13,7 +13,7 @@ When branches are built on top of each other (`main → feature-a → feature-b 
 - **Quizzes** per step and for the whole stack, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
 - **Progress view.** Shows files read, quiz results, mistakes, the questions you asked, and open notes.
 
-Everything is saved per project in `stdpath("data")/stackreview/<project>/` and kept between sessions.
+Everything is saved per project in `stdpath("data")/reviewer/<project>/` and kept between sessions.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
   "BenjaminRap/nvim-reviewer",
-  main = "stackreview",
+  main = "reviewer",
   cmd = { "Review", "ReviewQuiz", "ReviewProgress", "ReviewNotes", "ReviewAsks" },
   opts = {
     projects = {
@@ -42,7 +42,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
         labels = { ["feature-c"] = "feature-c (payments)" }, -- optional display names
         generated = { "^src/generated/" }, -- hidden by default (Lua patterns)
         -- worktrees = "~/code/myproject-review", -- default: next to the repo
-        -- quiz_dir = "...",                      -- default: stdpath("data")/stackreview/<name>/quizzes
+        -- quiz_dir = "...",                      -- default: stdpath("data")/reviewer/<name>/quizzes
         -- groups = { ... },                      -- reading order, see below
       },
     },
@@ -50,9 +50,9 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 }
 ```
 
-For a local copy, use `dir = "~/path/to/stackreview.nvim"` instead of the GitHub name.
+For a local copy, use `dir = "~/path/to/nvim-reviewer"` instead of the GitHub name.
 
-Run `:checkhealth stackreview` to check git, Claude Code, the refs of every step and the quiz files.
+Run `:checkhealth reviewer` to check git, Claude Code, the refs of every step and the quiz files.
 
 ## How the files are opened
 
@@ -151,7 +151,7 @@ In a quiz: `a`–`f` pick, `<CR>` check, `i` write an open answer, `d` don't kno
 ## Options
 
 ```lua
-require("stackreview").setup({
+require("reviewer").setup({
   projects = { ... },
   claude = {
     cmd = "claude",
@@ -211,7 +211,7 @@ Values are aliases accepted by `claude --model` (`opus`, `sonnet`, `haiku`) or f
 - **One model for everything:** set `claude.model` without `models`.
 - **If a model is busy or not on your plan,** `fallback_model` is used instead.
 
-Highlight groups (linked by default, override them in your colorscheme): `StackReviewAdd`, `StackReviewDelete`, `StackReviewComment`, `StackReviewNote`, `StackReviewQuestion`, `StackReviewIssue`, `StackReviewCurrent`, `StackReviewRead`.
+Highlight groups (linked by default, override them in your colorscheme): `ReviewerAdd`, `ReviewerDelete`, `ReviewerComment`, `ReviewerNote`, `ReviewerQuestion`, `ReviewerIssue`, `ReviewerCurrent`, `ReviewerRead`.
 
 ## Quiz files
 
@@ -250,7 +250,7 @@ Quizzes are JSON files named `quiz-*.json` in the project's `quiz_dir`. Each ste
 
 ## Saved data
 
-`stdpath("data")/stackreview/<project>/`:
+`stdpath("data")/reviewer/<project>/`:
 
 - `state.json`: read marks, notes, quiz attempts with their history, questions asked to Claude
 - `explain.json`: step overviews and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)

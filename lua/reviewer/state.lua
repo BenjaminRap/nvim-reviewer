@@ -13,7 +13,7 @@ local function read_json(path)
   if text == "" then return nil end
   local ok, data = pcall(vim.json.decode, text, { luanil = { object = true, array = true } })
   if not ok then
-    vim.notify("stackreview: could not read " .. path .. " (" .. tostring(data) .. "). A copy was kept as .broken.", vim.log.levels.ERROR)
+    vim.notify("reviewer: could not read " .. path .. " (" .. tostring(data) .. "). A copy was kept as .broken.", vim.log.levels.ERROR)
     os.rename(path, path .. ".broken")
     return nil
   end
@@ -25,7 +25,7 @@ local function write_json(path, data)
   local tmp = path .. ".tmp"
   local f, err = io.open(tmp, "w")
   if not f then
-    vim.notify("stackreview: could not save " .. path .. ": " .. tostring(err), vim.log.levels.ERROR)
+    vim.notify("reviewer: could not save " .. path .. ": " .. tostring(err), vim.log.levels.ERROR)
     return
   end
   f:write(vim.json.encode(data))

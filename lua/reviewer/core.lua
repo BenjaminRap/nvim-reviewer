@@ -1,9 +1,9 @@
 -- Session state shared by every module: the active project and step,
 -- the files of each step, and which buffer shows which reviewed file.
-local config = require("stackreview.config")
-local state = require("stackreview.state")
-local git = require("stackreview.git")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local state = require("reviewer.state")
+local git = require("reviewer.git")
+local ui = require("reviewer.ui")
 
 local M = {
   project = nil, -- active project table
@@ -96,7 +96,7 @@ end
 
 -- Everything needed to show and comment one file of a step.
 function M.make_ctx(step, f)
-  local diff = require("stackreview.diff")
+  local diff = require("reviewer.diff")
   local dir, err = git.step_dir(M.project, step, true)
   if not dir then
     ui.notify(err or ("no folder for step " .. step.id), vim.log.levels.WARN)

@@ -1,13 +1,13 @@
 -- Ask Claude about a reviewed file or selected lines. Claude runs in the step's
 -- folder with read-only tools, so it can open any file of the repo at that step.
 -- Every question and answer is saved and listed in :ReviewAsks and :ReviewProgress.
-local config = require("stackreview.config")
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local claude = require("stackreview.claude")
-local diff = require("stackreview.diff")
-local explain = require("stackreview.explain")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local claude = require("reviewer.claude")
+local diff = require("reviewer.diff")
+local explain = require("reviewer.explain")
+local ui = require("reviewer.ui")
 
 local M = {}
 
@@ -66,12 +66,12 @@ function M.file_context(ctx, l1, l2)
 end
 
 function M.ask_here(l1, l2)
-  local ctx = require("stackreview.review").current_ctx()
+  local ctx = require("reviewer.review").current_ctx()
   if not ctx then return ui.notify("open a reviewed file first", vim.log.levels.WARN) end
   local sel = false
   local mode = vim.fn.mode()
   if l1 == nil and (mode == "v" or mode == "V" or mode == "\22") then
-    l1, l2 = require("stackreview.notes").range()
+    l1, l2 = require("reviewer.notes").range()
     sel = true
   elseif l1 then sel = true end
   local title = ("%s%s"):format(ctx.file.path, sel and ((":%d"):format(l1) .. (l2 > l1 and ("-" .. l2) or "")) or "")

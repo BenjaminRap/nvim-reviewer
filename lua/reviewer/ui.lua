@@ -100,7 +100,7 @@ function M.input(opts, on_submit)
   vim.cmd("startinsert!")
 end
 
-function M.notify(msg, level) vim.notify("stackreview: " .. msg, level or vim.log.levels.INFO) end
+function M.notify(msg, level) vim.notify("reviewer: " .. msg, level or vim.log.levels.INFO) end
 
 function M.fmt_date(iso)
   if not iso then return "" end

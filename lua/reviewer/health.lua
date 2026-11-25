@@ -2,8 +2,8 @@ local M = {}
 
 function M.check()
   local h = vim.health
-  local config = require("stackreview.config")
-  h.start("stackreview.nvim")
+  local config = require("reviewer.config")
+  h.start("nvim-reviewer")
   if vim.fn.has("nvim-0.10") == 1 then h.ok("Neovim " .. tostring(vim.version())) else h.error("Neovim 0.10 or newer is needed") end
   if vim.fn.executable("git") == 1 then h.ok("git found") else h.error("git not found") end
   local cmd = config.options.claude.cmd
@@ -11,7 +11,7 @@ function M.check()
   else h.warn("'" .. cmd .. "' not found: comments, questions and open-answer grading will not work") end
   local names = config.project_names()
   if #names == 0 then h.warn("no project configured; see the README") end
-  local git = require("stackreview.git")
+  local git = require("reviewer.git")
   for _, name in ipairs(names) do
     local p = config.project(name)
     h.start("project " .. name)

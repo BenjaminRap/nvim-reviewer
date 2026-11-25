@@ -1,30 +1,30 @@
 -- Draws a reviewed file: added lines highlighted, removed lines shown in place,
 -- Claude's comments and your notes, all with extmarks (the file is not changed).
-local config = require("stackreview.config")
-local state = require("stackreview.state")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local state = require("reviewer.state")
+local ui = require("reviewer.ui")
 
 local M = {}
-M.ns = vim.api.nvim_create_namespace("stackreview")
+M.ns = vim.api.nvim_create_namespace("reviewer")
 
 function M.setup_highlights()
   local links = {
-    StackReviewAdd = "DiffAdd", StackReviewAddSign = "Added",
-    StackReviewDelete = "DiffDelete", StackReviewDeleteSign = "Removed",
-    StackReviewComment = "DiagnosticVirtualTextInfo", StackReviewCommentTitle = "DiagnosticInfo",
-    StackReviewNote = "DiagnosticVirtualTextWarn", StackReviewQuestion = "DiagnosticVirtualTextHint", StackReviewIssue = "DiagnosticVirtualTextError",
-    StackReviewRead = "Comment", StackReviewGroup = "Title", StackReviewHeader = "Title", StackReviewDim = "Comment",
-    StackReviewOk = "DiagnosticOk", StackReviewBad = "DiagnosticError", StackReviewPartial = "DiagnosticWarn",
-    StackReviewCurrent = "CursorLine", StackReviewFlash = "IncSearch", StackReviewAction = "Function",
+    ReviewerAdd = "DiffAdd", ReviewerAddSign = "Added",
+    ReviewerDelete = "DiffDelete", ReviewerDeleteSign = "Removed",
+    ReviewerComment = "DiagnosticVirtualTextInfo", ReviewerCommentTitle = "DiagnosticInfo",
+    ReviewerNote = "DiagnosticVirtualTextWarn", ReviewerQuestion = "DiagnosticVirtualTextHint", ReviewerIssue = "DiagnosticVirtualTextError",
+    ReviewerRead = "Comment", ReviewerGroup = "Title", ReviewerHeader = "Title", ReviewerDim = "Comment",
+    ReviewerOk = "DiagnosticOk", ReviewerBad = "DiagnosticError", ReviewerPartial = "DiagnosticWarn",
+    ReviewerCurrent = "CursorLine", ReviewerFlash = "IncSearch", ReviewerAction = "Function",
   }
   for k, v in pairs(links) do vim.api.nvim_set_hl(0, k, { link = v, default = true }) end
 end
 
 local KIND = {
-  note = { sign = "●", hl = "StackReviewNote", name = "Note" },
-  question = { sign = "?", hl = "StackReviewQuestion", name = "Question" },
-  issue = { sign = "!", hl = "StackReviewIssue", name = "Issue" },
-  ai = { sign = "✦", hl = "StackReviewComment", name = "Claude answer" },
+  note = { sign = "●", hl = "ReviewerNote", name = "Note" },
+  question = { sign = "?", hl = "ReviewerQuestion", name = "Question" },
+  issue = { sign = "!", hl = "ReviewerIssue", name = "Issue" },
+  ai = { sign = "✦", hl = "ReviewerComment", name = "Claude answer" },
 }
 M.KIND = KIND
 
@@ -46,8 +46,8 @@ local function comment_lines(texts, width)
     local wrapped = ui.wrap(t, math.max(30, width - 6))
     for j, l in ipairs(wrapped) do
       out[#out + 1] = {
-        { j == 1 and " ✦ " or "   ", "StackReviewCommentTitle" },
-        { pad(l, width - 4), "StackReviewComment" },
+        { j == 1 and " ✦ " or "   ", "ReviewerCommentTitle" },
+        { pad(l, width - 4), "ReviewerComment" },
       }
     end
   end
@@ -63,7 +63,7 @@ function M.notes_for(ctx)
 end
 
 function M.draw(buf)
-  local core = require("stackreview.core")
+  local core = require("reviewer.core")
   local ctx = core.buffers[buf]
   if not ctx or not vim.api.nvim_buf_is_valid(buf) then return end
   vim.api.nvim_buf_clear_namespace(buf, M.ns, 0, -1)
@@ -75,7 +75,7 @@ function M.draw(buf)
 
   -- Claude's comments first, so they sit above the removed lines of the same block.
   if config.options.show_comments then
-    local e = require("stackreview.explain").get(ctx)
+    local e = require("reviewer.explain").get(ctx)
     if e and e.comments then
       local by_hunk = {}
       for _, h in ipairs(ctx.hunks) do by_hunk[h.id] = h end
@@ -100,20 +100,20 @@ function M.draw(buf)
 
   if ctx.deleted then
     for l = 1, nlines do
-      vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "StackReviewDelete", sign_text = "-", sign_hl_group = "StackReviewDeleteSign" })
+      vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = "-", sign_hl_group = "ReviewerDeleteSign" })
     end
   else
     for _, h in ipairs(ctx.hunks) do
       if h.new_count > 0 then
         for l = h.new_start, math.min(nlines, h.new_start + h.new_count - 1) do
-          vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "StackReviewAdd", sign_text = "+", sign_hl_group = "StackReviewAddSign", priority = 10 })
+          vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerAdd", sign_text = "+", sign_hl_group = "ReviewerAddSign", priority = 10 })
         end
       end
       if #h.removed > 0 then
         local vl = {}
         for _, r in ipairs(h.removed) do
           local t = r:gsub("\t", string.rep(" ", ts))
-          vl[#vl + 1] = { { pad("- " .. t, width), "StackReviewDelete" } }
+          vl[#vl + 1] = { { pad("- " .. t, width), "ReviewerDelete" } }
         end
         if h.anchor == 1 and h.above then top_fill = top_fill + #vl end
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(h.anchor), 0, { virt_lines = vl, virt_lines_above = h.above, priority = 10 })
@@ -126,14 +126,14 @@ function M.draw(buf)
     local first = (n.text or ""):gsub("\n.*", "")
     vim.api.nvim_buf_set_extmark(buf, M.ns, row(n.line), 0, {
       sign_text = k.sign, sign_hl_group = k.hl, priority = 30,
-      virt_text = { { "  " .. k.sign .. " " .. (n.done and "(resolved) " or "") .. first:sub(1, 90), n.done and "StackReviewDim" or k.hl } },
+      virt_text = { { "  " .. k.sign .. " " .. (n.done and "(resolved) " or "") .. first:sub(1, 90), n.done and "ReviewerDim" or k.hl } },
       virt_text_pos = "eol",
     })
   end
 
   -- Hint on the first line when Claude has not commented this file yet.
   if not ctx.file.generated and not ctx.file.binary then
-    local ex = require("stackreview.explain")
+    local ex = require("reviewer.explain")
     local hint
     if ex.status[ex.key(ctx)] == "pending" then hint = "✦ Claude is writing comments on this file…"
     elseif not ex.get(ctx) then
@@ -141,7 +141,7 @@ function M.draw(buf)
       hint = "✦ no Claude comments yet" .. ((key and key ~= "") and (": " .. key) or ": :ReviewExplain")
     end
     if hint then
-      vim.api.nvim_buf_set_extmark(buf, M.ns, 0, 0, { virt_text = { { "  " .. hint, "StackReviewDim" } }, virt_text_pos = "eol", priority = 5 })
+      vim.api.nvim_buf_set_extmark(buf, M.ns, 0, 0, { virt_text = { { "  " .. hint, "ReviewerDim" } }, virt_text_pos = "eol", priority = 5 })
     end
   end
 
@@ -157,7 +157,7 @@ function M.draw(buf)
 end
 
 function M.draw_all()
-  local core = require("stackreview.core")
+  local core = require("reviewer.core")
   for buf in pairs(core.buffers) do
     if vim.api.nvim_buf_is_valid(buf) then M.draw(buf) else core.buffers[buf] = nil end
   end

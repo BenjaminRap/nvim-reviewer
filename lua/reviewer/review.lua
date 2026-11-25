@@ -1,16 +1,16 @@
 -- Opening reviewed files, moving between files and changes, read marks.
-local config = require("stackreview.config")
-local core = require("stackreview.core")
-local git = require("stackreview.git")
-local state = require("stackreview.state")
-local render = require("stackreview.render")
-local explain = require("stackreview.explain")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local core = require("reviewer.core")
+local git = require("reviewer.git")
+local state = require("reviewer.state")
+local render = require("reviewer.render")
+local explain = require("reviewer.explain")
+local ui = require("reviewer.ui")
 
 local M = { last_win = nil }
 
 local function is_panel(win)
-  local panel = require("stackreview.panel")
+  local panel = require("reviewer.panel")
   return panel.win ~= nil and win == panel.win
 end
 
@@ -34,7 +34,7 @@ end
 local function set_keymaps(buf)
   local km = config.options.keymaps or {}
   local function map(lhs, fn, desc)
-    if lhs and lhs ~= "" then vim.keymap.set("n", lhs, fn, { buffer = buf, desc = "stackreview: " .. desc }) end
+    if lhs and lhs ~= "" then vim.keymap.set("n", lhs, fn, { buffer = buf, desc = "reviewer: " .. desc }) end
   end
   map(km.next_change, function() M.jump_change(1) end, "next change")
   map(km.prev_change, function() M.jump_change(-1) end, "previous change")
@@ -44,10 +44,10 @@ local function set_keymaps(buf)
   map(km.read_next, function() M.read_next() end, "mark read and open the next unread file")
   map(km.explain, function() M.explain(false) end, "Claude's comments on this file")
   if km.note and km.note ~= "" then
-    vim.keymap.set({ "n", "x" }, km.note, function() require("stackreview.notes").add_here() end, { buffer = buf, desc = "stackreview: add a note" })
+    vim.keymap.set({ "n", "x" }, km.note, function() require("reviewer.notes").add_here() end, { buffer = buf, desc = "reviewer: add a note" })
   end
   if km.ask and km.ask ~= "" then
-    vim.keymap.set({ "n", "x" }, km.ask, function() require("stackreview.ask").ask_here() end, { buffer = buf, desc = "stackreview: ask Claude" })
+    vim.keymap.set({ "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, { buffer = buf, desc = "reviewer: ask Claude" })
   end
 end
 
@@ -60,7 +60,7 @@ function M.attach(buf, ctx)
   end
   if not ctx then
     local name = vim.api.nvim_buf_get_name(buf)
-    if name == "" or name:match("^stackreview://") then return end
+    if name == "" or name:match("^reviewer://") then return end
     local step, f = core.locate(name)
     if not step then return end
     ctx = core.make_ctx(step, f)
@@ -85,7 +85,7 @@ function M.open(step, f, line)
   vim.api.nvim_set_current_win(win)
   M.last_win = win
   if f.status == "D" then
-    local name = ("stackreview://step%s/%s (deleted)"):format(step.id, f.path)
+    local name = ("reviewer://step%s/%s (deleted)"):format(step.id, f.path)
     local buf = vim.fn.bufnr(name)
     if buf == -1 then
       buf = vim.api.nvim_create_buf(true, true)
@@ -120,7 +120,7 @@ function M.open_path(step, path, line)
 end
 
 local function visible_files(step)
-  local panel = require("stackreview.panel")
+  local panel = require("reviewer.panel")
   return core.ordered(step, { hide_generated = panel.hide_generated, order = panel.order })
 end
 

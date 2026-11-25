@@ -1,17 +1,17 @@
 -- Side panel listing a step's changed files, with read marks per file, group and folder.
-local config = require("stackreview.config")
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local explain = require("stackreview.explain")
-local render = require("stackreview.render")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local explain = require("reviewer.explain")
+local render = require("reviewer.render")
+local ui = require("reviewer.ui")
 
 local M = {
   buf = nil, win = nil, items = {},
   order = nil, hide_read = false, hide_generated = nil,
   collapsed = {},
 }
-local ns = vim.api.nvim_create_namespace("stackreview_panel")
+local ns = vim.api.nvim_create_namespace("reviewer_panel")
 
 local HELP = {
   "<CR> o  open file            x  toggle read (file, group or folder)",
@@ -30,7 +30,7 @@ local HELP = {
 local function is_open() return M.win and vim.api.nvim_win_is_valid(M.win) end
 
 local function quiz_line(step)
-  local ok, quiz = pcall(require, "stackreview.quiz")
+  local ok, quiz = pcall(require, "reviewer.quiz")
   if not ok then return "" end
   local s = quiz.stats("step" .. step.id)
   if not s.total then return "quiz not available" end
@@ -49,30 +49,30 @@ local function build()
   local function hl_range(l, s, e, group) hls[#hls + 1] = { l - 1, s, e, group } end
 
   local read, total = core.reviewable(step)
-  add(("Step %s/%d · %s"):format(step.id, #project.steps, step.label), { kind = "step" }, "StackReviewHeader")
-  add(("%s → %s"):format(step.base_branch, step.branch), nil, "StackReviewDim")
-  add(("%d/%d files read · %s"):format(read, total, quiz_line(step)), nil, "StackReviewDim")
-  if step.stale then add("! branch moved since the folder was made: :ReviewFetch", nil, "StackReviewPartial") end
+  add(("Step %s/%d · %s"):format(step.id, #project.steps, step.label), { kind = "step" }, "ReviewerHeader")
+  add(("%s → %s"):format(step.base_branch, step.branch), nil, "ReviewerDim")
+  add(("%d/%d files read · %s"):format(read, total, quiz_line(step)), nil, "ReviewerDim")
+  if step.stale then add("! branch moved since the folder was made: :ReviewFetch", nil, "ReviewerPartial") end
   -- Actions (press <CR> on a line, or its key)
-  local prep = require("stackreview.prepare")
-  local quiz = require("stackreview.quiz")
+  local prep = require("reviewer.prepare")
+  local quiz = require("reviewer.quiz")
   local ps = prep.status(step.id)
   local s = prep.step_state(step)
   add("")
   if ps then
-    add(ps, nil, "StackReviewPartial")
-    add("■ S  stop preparing", { kind = "action", run = function() prep.command({ "stop" }) end }, "StackReviewAction")
+    add(ps, nil, "ReviewerPartial")
+    add("■ S  stop preparing", { kind = "action", run = function() prep.command({ "stop" }) end }, "ReviewerAction")
   elseif not (s.overview and s.commented >= s.total and s.quiz) then
-    add(("▶ A  prepare this step with Claude (comments %d/%d)"):format(s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "StackReviewAction")
+    add(("▶ A  prepare this step with Claude (comments %d/%d)"):format(s.commented, s.total), { kind = "action", run = function() prep.step(step) end }, "ReviewerAction")
   end
-  add("▶ O  " .. (s.overview and "step overview" or "write the step overview (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "StackReviewAction")
+  add("▶ O  " .. (s.overview and "step overview" or "write the step overview (1 call)"), { kind = "action", run = function() prep.overview_then_show(step) end }, "ReviewerAction")
   local qs = quiz.stats("step" .. step.id)
-  add("▶ Q  " .. (s.quiz and ("step quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the step quiz"), { kind = "action", run = function() M.take_quiz("step" .. step.id) end }, "StackReviewAction")
+  add("▶ Q  " .. (s.quiz and ("step quiz (%d/%d answered)"):format(qs.answered, qs.total or 0) or "write the step quiz"), { kind = "action", run = function() M.take_quiz("step" .. step.id) end }, "ReviewerAction")
   local fs = quiz.stats("final")
-  add("▶ F  " .. (fs.total and ("final quiz (%d/%d answered)"):format(fs.answered, fs.total) or "write the final quiz"), { kind = "action", run = function() M.take_quiz("final") end }, "StackReviewAction")
+  add("▶ F  " .. (fs.total and ("final quiz (%d/%d answered)"):format(fs.answered, fs.total) or "write the final quiz"), { kind = "action", run = function() M.take_quiz("final") end }, "ReviewerAction")
   if core.current and core.current.step.id == step.id and not core.current.file.generated and not explain.get(core.current) then
     local ctx = core.current
-    add("▶ e  comment " .. vim.fs.basename(ctx.file.path), { kind = "action", run = function() require("stackreview.review").explain_ctx(ctx, false) end }, "StackReviewAction")
+    add("▶ e  comment " .. vim.fs.basename(ctx.file.path), { kind = "action", run = function() require("reviewer.review").explain_ctx(ctx, false) end }, "ReviewerAction")
   end
   add("")
 
@@ -97,15 +97,15 @@ local function build()
     if explain.status[step.id .. "|" .. f.path] == "pending" then tail = tail .. " …" end
     add(text .. tail, { kind = "file", file = f })
     local l = #lines
-    if r then hl_range(l, 0, -1, "StackReviewRead") end
+    if r then hl_range(l, 0, -1, "ReviewerRead") end
     local s = #text
-    if hint and hint ~= "" then hl_range(l, s, s + 2 + #hint, "StackReviewDim") ; s = s + 2 + #hint end
+    if hint and hint ~= "" then hl_range(l, s, s + 2 + #hint, "ReviewerDim") ; s = s + 2 + #hint end
     local plus = stats:match("^  %+%d+") or ""
     if not f.binary then
-      hl_range(l, s + 2, s + #plus, "StackReviewAddSign")
-      hl_range(l, s + #plus, s + #stats, "StackReviewDeleteSign")
+      hl_range(l, s + 2, s + #plus, "ReviewerAddSign")
+      hl_range(l, s + #plus, s + #stats, "ReviewerDeleteSign")
     end
-    if f.path == cur then hl_range(l, 0, -1, "StackReviewCurrent") end
+    if f.path == cur then hl_range(l, 0, -1, "ReviewerCurrent") end
   end
 
   local function group_line(key, label, indent, paths)
@@ -113,7 +113,7 @@ local function build()
     for _, p in ipairs(paths) do if core.is_read(p, step) then done = done + 1 end end
     local mark = done == 0 and " " or (done == #paths and "x" or "-")
     local folded = M.collapsed[step.id .. ":" .. key]
-    add(("%s%s [%s] %s  %d/%d"):format(indent, folded and "▸" or "▾", mark, label, done, #paths), { kind = "group", key = key, paths = paths }, "StackReviewGroup")
+    add(("%s%s [%s] %s  %d/%d"):format(indent, folded and "▸" or "▾", mark, label, done, #paths), { kind = "group", key = key, paths = paths }, "ReviewerGroup")
     return folded
   end
 
@@ -172,16 +172,16 @@ local function build()
 
   if core.current and core.current.step.id == step.id then
     local e = explain.get(core.current)
-    add("── " .. core.current.file.path:match("[^/]+$") .. " ──", nil, "StackReviewHeader")
+    add("── " .. core.current.file.path:match("[^/]+$") .. " ──", nil, "ReviewerHeader")
     if e then
       for _, l in ipairs(ui.wrap(e.summary, (config.options.panel.width or 48) - 2)) do add(l) end
     else
       local s = explain.status[explain.key(core.current)]
-      add(s == "pending" and "Claude is writing comments…" or (s and s:sub(1, 60)) or "no comments yet (e)", nil, "StackReviewDim")
+      add(s == "pending" and "Claude is writing comments…" or (s and s:sub(1, 60)) or "no comments yet (e)", nil, "ReviewerDim")
     end
     add("")
   end
-  add("? help", nil, "StackReviewDim")
+  add("? help", nil, "ReviewerDim")
   return lines, hls, items
 end
 
@@ -195,7 +195,7 @@ function M.render()
   vim.api.nvim_buf_clear_namespace(M.buf, ns, 0, -1)
   for _, h in ipairs(hls) do
     local line_len = #(lines[h[1] + 1] or "")
-    pcall(vim.api.nvim_buf_set_extmark, M.buf, ns, h[1], h[2], { end_col = h[3] == -1 and line_len or math.min(h[3], line_len), hl_group = h[4], hl_eol = h[3] == -1, priority = h[4] == "StackReviewCurrent" and 5 or 10 })
+    pcall(vim.api.nvim_buf_set_extmark, M.buf, ns, h[1], h[2], { end_col = h[3] == -1 and line_len or math.min(h[3], line_len), hl_group = h[4], hl_eol = h[3] == -1, priority = h[4] == "ReviewerCurrent" and 5 or 10 })
   end
   pcall(vim.api.nvim_win_set_cursor, M.win, { math.min(cursor[1], #lines), cursor[2] })
 end
@@ -207,7 +207,7 @@ end
 local function act(fn) return function() local it = item_at_cursor() ; if it then fn(it) end end end
 
 local function setup_keys(buf)
-  local review = require("stackreview.review")
+  local review = require("reviewer.review")
   local function map(lhs, fn) vim.keymap.set("n", lhs, fn, { buffer = buf, nowait = true, silent = true }) end
   local open = act(function(it)
     if it.kind == "action" then it.run()
@@ -242,23 +242,23 @@ local function setup_keys(buf)
   map("a", act(function(it) if it.kind == "file" then review.open(core.step, it.file) ; review.about() end end))
   map("Q", function() M.take_quiz("step" .. core.step.id) end)
   map("F", function() M.take_quiz("final") end)
-  map("O", function() require("stackreview.prepare").overview_then_show(core.step) end)
-  map("A", function() require("stackreview.prepare").step(core.step) end)
-  map("S", function() require("stackreview.prepare").command({ "stop" }) end)
+  map("O", function() require("reviewer.prepare").overview_then_show(core.step) end)
+  map("A", function() require("reviewer.prepare").step(core.step) end)
+  map("S", function() require("reviewer.prepare").command({ "stop" }) end)
   map("E", act(function(it)
     local paths = it.kind == "group" and it.paths or (it.kind == "file" and { it.file.path }) or nil
-    if paths then require("stackreview.prepare").paths(core.step, paths) end
+    if paths then require("reviewer.prepare").paths(core.step, paths) end
   end))
-  map("P", function() require("stackreview.progress").open() end)
-  map("N", function() require("stackreview.notes").list() end)
+  map("P", function() require("reviewer.progress").open() end)
+  map("N", function() require("reviewer.notes").list() end)
   map("C", function() review.toggle_comments() end)
   map("q", function() M.close() end)
   map("?", function() ui.show("Review panel keys", HELP, { width = 72, height = #HELP + 2 }) end)
 end
 
 function M.take_quiz(id)
-  local quiz = require("stackreview.quiz")
-  require("stackreview.prepare").quiz_or_write(id, function() quiz.reload() ; quiz.open(id) end)
+  local quiz = require("reviewer.quiz")
+  require("reviewer.prepare").quiz_or_write(id, function() quiz.reload() ; quiz.open(id) end)
 end
 
 function M.pick_step()
@@ -278,8 +278,8 @@ function M.open()
   if is_open() then vim.api.nvim_set_current_win(M.win) ; M.render() ; return end
   if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then
     M.buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_name(M.buf, "stackreview://panel")
-    vim.bo[M.buf].filetype = "stackreview"
+    vim.api.nvim_buf_set_name(M.buf, "reviewer://panel")
+    vim.bo[M.buf].filetype = "reviewer"
     vim.bo[M.buf].bufhidden = "hide"
     setup_keys(M.buf)
   end

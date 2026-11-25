@@ -76,8 +76,8 @@ M.options = vim.deepcopy(M.defaults)
 local function expand(p) return p and vim.fs.normalize(vim.fn.expand(p)) or nil end
 
 local function normalize_project(name, p)
-  assert(p.root, "stackreview: project '" .. name .. "' needs a root")
-  assert(type(p.stack) == "table" and #p.stack > 0, "stackreview: project '" .. name .. "' needs a stack of branches")
+  assert(p.root, "reviewer: project '" .. name .. "' needs a root")
+  assert(type(p.stack) == "table" and #p.stack > 0, "reviewer: project '" .. name .. "' needs a stack of branches")
   local proj = vim.tbl_extend("force", {
     remote = "origin",
     base = "main",
@@ -86,7 +86,7 @@ local function normalize_project(name, p)
   proj.name = name
   proj.root = expand(p.root)
   proj.worktrees = expand(p.worktrees) or (vim.fs.dirname(proj.root) .. "/" .. vim.fs.basename(proj.root) .. "-review")
-  proj.data_dir = vim.fn.stdpath("data") .. "/stackreview/" .. name
+  proj.data_dir = vim.fn.stdpath("data") .. "/reviewer/" .. name
   proj.quiz_dir = expand(p.quiz_dir) or (proj.data_dir .. "/quizzes")
   proj.groups = p.groups or M.options.groups
   proj.generated = vim.list_extend(vim.deepcopy(M.options.generated), p.generated or {})

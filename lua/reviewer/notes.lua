@@ -1,8 +1,8 @@
 -- Your notes on lines of reviewed files: note, question to come back to, issue to fix.
-local core = require("stackreview.core")
-local state = require("stackreview.state")
-local render = require("stackreview.render")
-local ui = require("stackreview.ui")
+local core = require("reviewer.core")
+local state = require("reviewer.state")
+local render = require("reviewer.render")
+local ui = require("reviewer.ui")
 
 local M = {}
 
@@ -25,7 +25,7 @@ end
 M.range = range
 
 function M.add_here(l1, l2)
-  local review = require("stackreview.review")
+  local review = require("reviewer.review")
   local ctx = review.current_ctx()
   if not ctx then return ui.notify("open a reviewed file first", vim.log.levels.WARN) end
   if not l1 then l1, l2 = range() end
@@ -58,7 +58,7 @@ function M.jump(n)
   local step = core.project.steps[tonumber(n.step)]
   if not step then return end
   if core.step.id ~= step.id then core.set_step(step.id) end
-  require("stackreview.review").open_path(step, n.path, n.line)
+  require("reviewer.review").open_path(step, n.path, n.line)
 end
 
 -- Pick a note: open it, resolve it, or delete it.
@@ -97,7 +97,7 @@ end
 
 -- Notes on the line under the cursor (to resolve or delete quickly).
 function M.at_cursor()
-  local ctx = require("stackreview.review").current_ctx()
+  local ctx = require("reviewer.review").current_ctx()
   if not ctx then return end
   local l = vim.api.nvim_win_get_cursor(0)[1]
   M.list(function(n) return n.step == ctx.step.id and n.path == ctx.file.path and (n.line or 0) <= l and (n.end_line or n.line or 0) >= l end)

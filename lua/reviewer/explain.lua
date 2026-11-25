@@ -1,11 +1,11 @@
 -- Claude's comments on a file: a summary, what changed, and a comment per change block.
 -- Written once per file and saved; written again only if the diff changes or on request.
-local config = require("stackreview.config")
-local state = require("stackreview.state")
-local claude = require("stackreview.claude")
-local diff = require("stackreview.diff")
-local git = require("stackreview.git")
-local ui = require("stackreview.ui")
+local config = require("reviewer.config")
+local state = require("reviewer.state")
+local claude = require("reviewer.claude")
+local diff = require("reviewer.diff")
+local git = require("reviewer.git")
+local ui = require("reviewer.ui")
 
 local M = { status = {} } -- key -> "pending" | "error: ..."
 
@@ -131,7 +131,7 @@ function M.ensure(ctx, opts)
   if not opts.force and M.get(ctx) then return end
   if not opts.force and not opts.manual and not config.options.ai.comment_on_open then return end
   M.status[key] = "pending"
-  require("stackreview.core").changed()
+  require("reviewer.core").changed()
   if not opts.prefetch then ui.notify("Claude is commenting " .. f.path .. "…") end
   claude.run(prompt(ctx), { json = true, tools = config.options.claude.explain_tools, cwd = ctx.dir, use = "comments" }, function(err, res)
     if err or type(res) ~= "table" or type(res.comments) ~= "table" then
@@ -143,13 +143,13 @@ function M.ensure(ctx, opts)
       if not opts.prefetch then ui.notify("comments ready for " .. f.path) end
       if config.options.ai.prefetch_next and not opts.force and not opts.prefetch then M.prefetch_after(ctx) end
     end
-    require("stackreview.core").changed()
+    require("reviewer.core").changed()
   end)
 end
 
 -- Comment the next unread file in the background.
 function M.prefetch_after(ctx)
-  local core = require("stackreview.core")
+  local core = require("reviewer.core")
   local files = core.ordered(ctx.step, { hide_generated = true })
   local seen = false
   for _, f in ipairs(files) do

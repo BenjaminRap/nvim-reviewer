@@ -1,17 +1,17 @@
-if vim.g.loaded_stackreview then return end
-vim.g.loaded_stackreview = true
+if vim.g.loaded_reviewer then return end
+vim.g.loaded_reviewer = true
 
 if vim.fn.has("nvim-0.10") ~= 1 then
-  vim.notify("stackreview.nvim needs Neovim 0.10 or newer", vim.log.levels.ERROR)
+  vim.notify("nvim-reviewer needs Neovim 0.10 or newer", vim.log.levels.ERROR)
   return
 end
 
-local function c() return require("stackreview").commands end
+local function c() return require("reviewer").commands end
 local cmd = vim.api.nvim_create_user_command
 
-cmd("Review", function(o) require("stackreview").start(o.args) end, {
+cmd("Review", function(o) require("reviewer").start(o.args) end, {
   nargs = "?", desc = "Start reviewing a project's branch stack",
-  complete = function() return require("stackreview.config").project_names() end,
+  complete = function() return require("reviewer.config").project_names() end,
 })
 cmd("ReviewStep", function(o) c().step(o.args) end, { nargs = 1, desc = "Go to a review step" })
 cmd("ReviewPanel", function() c().panel() end, { desc = "Toggle the review file panel" })
@@ -30,7 +30,7 @@ cmd("ReviewAsks", function() c().asks() end, { desc = "Questions you asked Claud
 cmd("ReviewQuiz", function(o) c().quiz(o.args) end, {
   nargs = "?", desc = "Take a quiz: step number, final, or mistakes",
   complete = function()
-    local ok, quiz = pcall(require, "stackreview.quiz")
+    local ok, quiz = pcall(require, "reviewer.quiz")
     local list = ok and quiz.ids() or {}
     for i, id in ipairs(list) do list[i] = id:gsub("^step", "") end
     list[#list + 1] = "mistakes"
@@ -44,7 +44,7 @@ cmd("ReviewPrepare", function(o) c().prepare(o.fargs, o.bang) end, {
     local n = #vim.split(line, "%s+") - 1
     if n <= 1 then
       local list = { "final", "all", "stop" }
-      local ok, config = pcall(require, "stackreview.config")
+      local ok, config = pcall(require, "reviewer.config")
       for _, name in ipairs(ok and config.project_names() or {}) do
         for i = 1, #config.project(name).steps do list[#list + 1] = tostring(i) end
         break
