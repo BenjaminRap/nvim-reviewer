@@ -10,6 +10,13 @@ M.defaults = {
   -- One hidden checkout per repo, used when your own checkout is not on the head
   -- branch of the review. It is moved to the head of each new review.
   worktree_dir = vim.fn.stdpath("cache") .. "/reviewer",
+  -- Dependencies of the hidden checkout, so the LSP finds the types of external
+  -- packages (npm, pnpm or yarn, from the lockfile). Never in your own checkout.
+  deps = {
+    install = true, -- false: never install
+    ignore_scripts = true, -- skip install scripts: no code of the reviewed branch runs
+    cmd = nil, -- your own install command, e.g. { "npm", "ci" }
+  },
   claude = {
     cmd = "claude",
     -- Model per use: an alias ("opus", "sonnet", "haiku") or a full model name.

@@ -43,6 +43,7 @@ local function open_review()
   require("reviewer.quiz").reload()
   local dir, err = git.step_dir(core.project, core.step, true)
   if not dir then ui.notify(err or "no checkout for this review", vim.log.levels.ERROR) end
+  if dir then require("reviewer.deps").ensure(core.project, dir) end
   -- files of the hidden checkout may now show another commit: reload them
   local wt = core.project.worktree
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
