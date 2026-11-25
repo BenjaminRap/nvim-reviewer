@@ -42,6 +42,10 @@ M.defaults = {
   },
   show_comments = true, -- Claude's comments above the code
   show_removed = true, -- removed lines shown in place, in red
+  -- Reviewed files cannot be changed. Earlier steps open in detached worktrees
+  -- and the last one may be your own checkout, so an edit there would be lost
+  -- or would change your working copy. :ReviewEdit unlocks one buffer.
+  readonly = true,
   hide_generated = true,
   order = "reading", -- "reading" (groups) or "tree" (folders)
   comment_width = 100, -- maximum width of a comment box

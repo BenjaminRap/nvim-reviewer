@@ -64,6 +64,7 @@ function M.attach(buf, ctx)
   core.buffers[buf] = ctx
   core.current = ctx
   set_keymaps(buf)
+  if config.options.readonly then M.lock(buf, true) end
   if vim.bo[buf].modified == false and ctx.dir then
     local dirty = git.run({ "status", "--porcelain", "--", ctx.file.path }, ctx.dir)
     if dirty and dirty ~= "" then ui.notify(ctx.file.path .. " has local changes; the overlay may not line up.", vim.log.levels.WARN) end
@@ -74,6 +75,23 @@ function M.attach(buf, ctx)
 end
 
 -- Open a file of a step in the main window, optionally at a line.
+-- Lock or unlock a reviewed buffer.
+function M.lock(buf, locked)
+  vim.bo[buf].modifiable = not locked
+  vim.bo[buf].readonly = locked
+end
+
+-- :ReviewEdit: allow changes in the current reviewed file (until it is closed).
+function M.unlock()
+  local buf = vim.api.nvim_get_current_buf()
+  local ctx = core.buffers[buf]
+  if not ctx then return ui.notify("this buffer is not a reviewed file", vim.log.levels.WARN) end
+  if ctx.deleted then return ui.notify("this file is deleted in this step; there is nothing to edit", vim.log.levels.WARN) end
+  M.lock(buf, false)
+  local where = ctx.dir == ctx.project.root and "your own checkout" or ("a detached worktree (" .. ctx.dir .. "), on no branch")
+  ui.notify(("editing unlocked for %s. Changes go to %s, and the review overlay may no longer line up."):format(ctx.file.path, where), vim.log.levels.WARN)
+end
+
 function M.open(step, f, line)
   local project = core.project
   local win = M.main_win()

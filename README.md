@@ -5,7 +5,7 @@ Review a stack of branches in Neovim, one step at a time, file by file, in your 
 When branches are built on top of each other (`main → feature-a → feature-b → feature-c`), each step is reviewed against the step before it, so you only see that step's own changes.
 
 - **A whole step prepared in advance.** `:ReviewPrepare` has Claude read the step as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz on the step that is checked locally.
-- **Full file with its changes.** Each file opens as a normal buffer. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
+- **Full file with its changes.** Each file opens as a normal buffer, read-only by default. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
 - **Claude's comments.** The first time you open a file, Claude Code writes a summary and a comment above each change block. Comments are saved, so each file is commented once.
 - **Read marks.** You can mark files, groups or whole folders as read in a side panel, with a reading order (database → shared → backend → frontend → tests) or a folder tree.
 - **Notes on lines**, of three kinds: note, question to come back to, issue to fix. They appear in the sign column and at the end of the line.
@@ -63,6 +63,8 @@ Each step needs a checkout of the code at its head:
 
 Worktrees are local folders, so nothing is pushed. Remove them with `git worktree remove <dir>` when the review is over.
 
+Reviewed files are read-only by default (`readonly = true`). An edit in an earlier step's worktree would go on no branch, and an edit in your main checkout would change your working copy, while the review overlay would stop lining up. Write an "issue" note instead and fix it on the branch. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files that the step does not change stay editable.
+
 `:ReviewFetch` runs `git fetch` and moves the step worktrees to their branch's new head, as long as they have no local changes.
 
 ## Commands
@@ -73,6 +75,7 @@ Worktrees are local folders, so nothing is pushed. Remove them with `git worktre
 | `:ReviewStep {n}` | Go to step n |
 | `:ReviewPanel` | Toggle the file panel |
 | `:ReviewNext` / `:ReviewPrev` / `:ReviewNextUnread` | Move between the step's files |
+| `:ReviewEdit` | Allow changes in the current reviewed file (read-only by default) |
 | `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
 | `:ReviewExplain[!]` | Write Claude's comments on the current file if it has none (`!` writes them again) |
 | `:ReviewComments` | Show or hide Claude's comments |
@@ -203,6 +206,7 @@ require("reviewer").setup({
   },
   show_comments = true,         -- Claude's comments above the code
   show_removed = true,          -- removed lines shown in place, in red
+  readonly = true,              -- reviewed files cannot be changed (:ReviewEdit unlocks one)
   hide_generated = true,
   order = "reading",            -- or "tree"
   comment_width = 100,          -- maximum width of a comment box

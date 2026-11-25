@@ -19,6 +19,7 @@ cmd("ReviewNext", function() c().next() end, { desc = "Open the next file of the
 cmd("ReviewPrev", function() c().prev() end, { desc = "Open the previous file of the step" })
 cmd("ReviewNextUnread", function() c().next_unread() end, { desc = "Open the next unread file" })
 cmd("ReviewRead", function() c().read() end, { desc = "Toggle the read mark of the current file" })
+cmd("ReviewEdit", function() c().edit() end, { desc = "Allow changes in the current reviewed file" })
 cmd("ReviewReadNext", function() c().read_next() end, { desc = "Mark read and open the next unread file" })
 cmd("ReviewExplain", function(o) c().explain(o.bang) end, { bang = true, desc = "Claude's comments on this file (! writes them again)" })
 cmd("ReviewComments", function() c().comments() end, { desc = "Show or hide Claude's comments" })

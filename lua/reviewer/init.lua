@@ -66,6 +66,7 @@ M.commands = {
   prev = function() if need_project() then require("reviewer.review").move(-1) end end,
   next_unread = function() if need_project() then require("reviewer.review").move(1, true) end end,
   read = function() if need_project() then require("reviewer.review").toggle_read() end end,
+  edit = function() if need_project() then require("reviewer.review").unlock() end end,
   read_next = function() if need_project() then require("reviewer.review").read_next() end end,
   explain = function(force) if need_project() then require("reviewer.review").explain(force) end end,
   comments = function() if need_project() then require("reviewer.review").toggle_comments() end end,
