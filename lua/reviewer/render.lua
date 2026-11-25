@@ -1,5 +1,5 @@
 -- Draws a reviewed file: added lines highlighted, removed lines shown in place,
--- Claude's comments and your notes, all with extmarks (the file is not changed).
+-- and Claude's comments, all with extmarks (the file is not changed).
 local config = require("reviewer.config")
 local state = require("reviewer.state")
 local ui = require("reviewer.ui")
@@ -12,7 +12,6 @@ function M.setup_highlights()
     ReviewerAdd = "DiffAdd", ReviewerAddSign = "Added",
     ReviewerDelete = "DiffDelete", ReviewerDeleteSign = "Removed",
     ReviewerComment = "DiagnosticVirtualTextInfo", ReviewerCommentTitle = "DiagnosticInfo",
-    ReviewerNote = "DiagnosticVirtualTextWarn", ReviewerQuestion = "DiagnosticVirtualTextHint", ReviewerIssue = "DiagnosticVirtualTextError",
     ReviewerRead = "Comment", ReviewerGroup = "Title", ReviewerHeader = "Title", ReviewerDim = "Comment",
     ReviewerOk = "DiagnosticOk", ReviewerBad = "DiagnosticError", ReviewerPartial = "DiagnosticWarn",
     ReviewerCurrent = "CursorLine", ReviewerFlash = "IncSearch", ReviewerAction = "Function",
@@ -21,14 +20,6 @@ function M.setup_highlights()
 end
 
 local function sym(name) return config.options.symbols[name] end
-local KIND = setmetatable({
-  note = { sym = "note", hl = "ReviewerNote", name = "Note" },
-  question = { sym = "question", hl = "ReviewerQuestion", name = "Question" },
-  issue = { sym = "issue", hl = "ReviewerIssue", name = "Issue" },
-  ai = { sym = "answer", hl = "ReviewerComment", name = "Claude answer" },
-}, {})
-for _, k in pairs(KIND) do setmetatable(k, { __index = function(t, key) if key == "sign" then return sym(t.sym) end end }) end
-M.KIND = KIND
 
 local function pad(text, width)
   local w = vim.fn.strdisplaywidth(text)
@@ -56,14 +47,6 @@ local function comment_lines(texts, width)
     end
   end
   return out
-end
-
-function M.notes_for(ctx)
-  local list = {}
-  for _, n in ipairs(state.get(ctx.project).notes) do
-    if n.step == ctx.step.id and n.path == ctx.file.path then list[#list + 1] = n end
-  end
-  return list
 end
 
 function M.draw(buf)
@@ -123,16 +106,6 @@ function M.draw(buf)
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(h.anchor), 0, { virt_lines = vl, virt_lines_above = h.above, priority = 10 })
       end
     end
-  end
-
-  for _, n in ipairs(M.notes_for(ctx)) do
-    local k = KIND[n.kind] or KIND.note
-    local first = (n.text or ""):gsub("\n.*", "")
-    vim.api.nvim_buf_set_extmark(buf, M.ns, row(n.line), 0, {
-      sign_text = k.sign, sign_hl_group = k.hl, priority = 30,
-      virt_text = { { "  " .. k.sign .. " " .. (n.done and "(resolved) " or "") .. first:sub(1, 90), n.done and "ReviewerDim" or k.hl } },
-      virt_text_pos = "eol",
-    })
   end
 
   -- Hint on the first line when Claude has not commented this file yet.

@@ -1,5 +1,5 @@
 -- One view of everything remembered: files read, quiz results, mistakes,
--- questions asked to Claude, open notes.
+-- questions asked to Claude.
 local core = require("reviewer.core")
 local state = require("reviewer.state")
 local ui = require("reviewer.ui")
@@ -63,14 +63,8 @@ function M.open()
     add(("- %s · %s — %s"):format(ui.fmt_date(a.at), a.title or "", (a.question or ""):gsub("\n", " "):sub(1, 90)), { kind = "ask", ask = a })
   end
 
-  local open, by = 0, { note = 0, question = 0, issue = 0, ai = 0 }
-  for _, n in ipairs(st.notes) do
-    if not n.done then open = open + 1 ; by[n.kind] = (by[n.kind] or 0) + 1 end
-  end
   add("")
-  add(("## Open notes: %d (%d issues, %d questions, %d notes)  ·  %s: list them"):format(open, by.issue, by.question, by.note, keys.label(k.notes)))
-  add("")
-  add(("_%s on a line opens it · %s retry mistakes · %s notes · %s questions asked · %s close_"):format(keys.label(k.open), keys.label(k.retry_mistakes), keys.label(k.notes), keys.label(k.asks), keys.label(keys.opts("float").close)))
+  add(("_%s on a line opens it · %s retry mistakes · %s questions asked · %s close_"):format(keys.label(k.open), keys.label(k.retry_mistakes), keys.label(k.asks), keys.label(keys.opts("float").close)))
 
   local buf = ui.show("Review progress", lines, { width = math.min(120, vim.o.columns - 4) })
   local function map(lhs, fn, desc) keys.map(buf, "n", lhs, fn, desc or "progress") end
@@ -84,7 +78,6 @@ function M.open()
     elseif t.kind == "ask" then require("reviewer.ask").show_answer(t.ask) end
   end)
   map(k.retry_mistakes, function() close() ; quiz.open("mistakes") end)
-  map(k.notes, function() close() ; require("reviewer.notes").list() end)
   map(k.asks, function() close() ; require("reviewer.ask").list() end)
 end
 

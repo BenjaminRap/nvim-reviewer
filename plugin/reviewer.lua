@@ -28,8 +28,6 @@ cmd("ReviewReadNext", function() c().read_next() end, { desc = "Mark read and op
 cmd("ReviewExplain", function(o) c().explain(o.bang) end, { bang = true, desc = "Claude's comments on this file (! writes them again)" })
 cmd("ReviewComments", function() c().comments() end, { desc = "Show or hide Claude's comments" })
 cmd("ReviewAbout", function() c().about() end, { desc = "Summary and commits of the current file" })
-cmd("ReviewNote", function(o) c().note(o.line1, o.line2) end, { range = true, desc = "Add a note on the current line or range" })
-cmd("ReviewNotes", function() c().notes() end, { desc = "List, open, resolve or delete notes" })
 cmd("ReviewAsk", function(o) c().ask(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, { range = true, desc = "Ask Claude about this file or the selected lines" })
 cmd("ReviewAsks", function() c().asks() end, { desc = "Questions you asked Claude, with answers" })
 cmd("ReviewQuiz", function(o) c().quiz(o.args) end, {
@@ -38,7 +36,7 @@ cmd("ReviewQuiz", function(o) c().quiz(o.args) end, {
     return { "list", "mistakes" }
   end,
 })
-cmd("ReviewProgress", function() c().progress() end, { desc = "Files read, quiz results, mistakes, questions, notes" })
+cmd("ReviewProgress", function() c().progress() end, { desc = "Files read, quiz results, mistakes, questions asked" })
 cmd("ReviewPrepare", function(o) c().prepare(o.fargs, o.bang) end, {
   nargs = "*", bang = true, desc = "Prepare the review in the background: overview, comments on every file, quiz",
   complete = function() return { "overview", "comments", "quiz", "stop" } end,

@@ -1,5 +1,5 @@
 -- nvim-reviewer: review a stack of branches step by step, file by file,
--- with Claude's comments, notes, quizzes and saved progress.
+-- with Claude's comments, quizzes and saved progress.
 local config = require("reviewer.config")
 
 local M = {}
@@ -151,8 +151,6 @@ M.commands = {
   explain = function(force) if need_project() then require("reviewer.review").explain(force) end end,
   comments = function() if need_project() then require("reviewer.review").toggle_comments() end end,
   about = function() if need_project() then require("reviewer.review").about() end end,
-  note = function(l1, l2) if need_project() then require("reviewer.notes").add_here(l1, l2) end end,
-  notes = function() if need_project() then require("reviewer.notes").list() end end,
   ask = function(l1, l2) if need_project() then require("reviewer.ask").ask_here(l1, l2) end end,
   asks = function() if need_project() then require("reviewer.ask").list() end end,
   quiz = function(arg) if need_project() then require("reviewer.quiz").open(arg) end end,
@@ -178,7 +176,7 @@ M.commands = {
     local repo = core.project or core.repo_here()
     if not repo then return ui.notify("not inside a git repository", vim.log.levels.ERROR) end
     if not vim.uv.fs_stat(repo.worktree) then return ui.notify("no hidden checkout for " .. repo.name) end
-    vim.ui.select({ "Yes, remove it", "No" }, { prompt = "Remove the hidden checkout " .. repo.worktree .. "? (your notes and progress are kept)" }, function(c)
+    vim.ui.select({ "Yes, remove it", "No" }, { prompt = "Remove the hidden checkout " .. repo.worktree .. "? (your progress is kept)" }, function(c)
       if not (c and c:match("^Yes")) then return end
       vim.schedule(function()
         for _, buf in ipairs(vim.api.nvim_list_bufs()) do

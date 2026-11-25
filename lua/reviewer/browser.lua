@@ -143,10 +143,6 @@ function M.render_buf(buf, force)
   if not info or not vim.api.nvim_buf_is_valid(buf) or not core.step then return end
   if vim.bo[buf].modified and not force then return set_winbar(buf) end
   local entries = info.view == "reading" and reading_entries() or folder_entries(info.dir)
-  local notes_count = {}
-  for _, n in ipairs(state.get(core.project).notes) do
-    if n.step == core.step.id and not n.done then notes_count[n.path] = (notes_count[n.path] or 0) + 1 end
-  end
   local cur = core.current and core.current.step.id == core.step.id and core.current.file.path or nil
   local lines, marks, items = {}, {}, {}
   -- keep the cursor on the same entry
@@ -201,7 +197,6 @@ function M.render_buf(buf, force)
         push("  +" .. f.add, "ReviewerAddSign")
         push(" −" .. f.del, "ReviewerDeleteSign")
       end
-      if notes_count[f.path] then push("  " .. sym("note") .. notes_count[f.path], "ReviewerNote") end
       if explain.status[core.step.id .. "|" .. f.path] == "pending" then push("  " .. sym("pending"), "ReviewerDim")
       elseif state.explain(core.project).files[core.step.id .. "|" .. f.path] then push("  " .. sym("comment"), "ReviewerCommentTitle") end
       if f.generated then push("  generated", "ReviewerDim") end
@@ -336,7 +331,7 @@ local function help_lines()
     { k.about, "about the file under the cursor" },
     { k.prepare, "prepare the review with Claude" }, { k.stop, "stop preparing" },
     { k.overview, "overview of the changes" }, { k.quiz, "quiz" },
-    { k.progress, "progress" }, { k.notes, "notes" },
+    { k.progress, "progress" },
     { k.new_review, "review other branches" }, { k.help, "this help" },
   }
   local out = { "Read marks: change [ ] to [" .. sym("read") .. "] (or back) with any edit, then :w.", "A folder's box marks everything inside it. u undoes until you save.", "" }
@@ -388,7 +383,6 @@ local function setup_buffer(buf)
   map(k.overview, function() require("reviewer.prepare").overview_then_show(core.step) end, "overview")
   map(k.quiz, function() M.take_quiz(core.step.id) end, "quiz")
   map(k.progress, function() require("reviewer.progress").open() end, "progress")
-  map(k.notes, function() require("reviewer.notes").list() end, "notes")
   map(k.new_review, function() require("reviewer").pick_review() end, "review other branches")
   map(k.help, function() local h = help_lines() ; ui.show("Review browser", h, { width = 80, height = #h + 2 }) end, "help")
 

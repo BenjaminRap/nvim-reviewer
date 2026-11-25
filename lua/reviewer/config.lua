@@ -72,7 +72,6 @@ M.defaults = {
     added = "+", removed = "-", -- signs in reviewed files
     removed_prefix = "- ", -- before each removed line shown in place
     comment = "✦", pending = "…",
-    note = "●", question = "?", issue = "!", answer = "✦",
     action = "▶", stop = "■",
   },
   -- Every key can be a string, a list of strings, or false to disable it.
@@ -83,7 +82,6 @@ M.defaults = {
       next_file = "]f", prev_file = "[f",
       toggle_read = "<leader>rr",
       read_next = "<leader>rn", -- mark read and open the next unread file
-      note = "<leader>rN", -- normal or visual mode
       ask = "<leader>ra", -- normal or visual mode
       explain = "<leader>re", -- Claude's comments on the file
       about = "<leader>ri",
@@ -100,7 +98,7 @@ M.defaults = {
       explain_folder = "gF", -- comment every file of the folder under the cursor
       about = "gK",
       prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
-      progress = "gL", notes = "gN", new_review = "gB",
+      progress = "gL", new_review = "gB",
       help = "g?",
     },
     quiz = {
@@ -117,7 +115,7 @@ M.defaults = {
       self_correct = "+", self_partial = "~", self_wrong = "-",
       close = { "q", "<Esc>" },
     },
-    progress = { open = "<CR>", retry_mistakes = "m", notes = "gn", asks = "A" },
+    progress = { open = "<CR>", retry_mistakes = "m", asks = "A" },
     float = { close = { "q", "<Esc>" } },
     input = { submit = "<C-s>", submit_normal = "<CR>", cancel = { "q", "<Esc>" } },
   },

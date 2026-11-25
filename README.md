@@ -8,10 +8,9 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **A review prepared in advance.** `:ReviewPrepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
-- **Notes on lines**, of three kinds: note, question to come back to, issue to fix. They appear in the sign column and at the end of the line.
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
-- **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, the questions you asked, and open notes.
+- **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, and the questions you asked.
 
 Everything is saved per repository in `stdpath("data")/reviewer/<repo>/` and kept between sessions.
 
@@ -31,7 +30,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 {
   "BenjaminRap/nvim-reviewer",
   main = "reviewer",
-  cmd = { "Review", "ReviewQuiz", "ReviewProgress", "ReviewNotes", "ReviewAsks" },
+  cmd = { "Review", "ReviewQuiz", "ReviewProgress", "ReviewAsks" },
   opts = {
     -- nothing is required; settings per repository are optional:
     repos = {
@@ -69,9 +68,9 @@ The files of a review must exist on disk at the version of the reviewed branch, 
 - **Your own checkout** is used when it is already on that commit.
 - **Otherwise, one hidden checkout** per repository (a git worktree in `stdpath("cache")/reviewer/<repo>`, see `worktree_dir`) is created the first time, then moved to the reviewed branch at each new review. It is on no branch, so nothing you do there can affect your branches.
 
-`:ReviewClean` removes the hidden checkout; your notes and progress are kept.
+`:ReviewClean` removes the hidden checkout; your progress is kept.
 
-Reviewed files are read-only by default (`readonly = true`). An edit in the hidden checkout would be on no branch and lost at the next review, and an edit in your own checkout would change your working copy, while the review overlay would stop lining up. Write an "issue" note instead and fix it on the branch. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files the review does not change stay editable.
+Reviewed files are read-only by default (`readonly = true`). An edit in the hidden checkout would be on no branch and lost at the next review, and an edit in your own checkout would change your working copy, while the review overlay would stop lining up. Fix what you find on the branch itself. `:ReviewEdit` unlocks the current file when you really need to, for example to try something. Files the review does not change stay editable.
 
 ## Commands
 
@@ -85,8 +84,6 @@ Reviewed files are read-only by default (`readonly = true`). An edit in the hidd
 | `:ReviewExplain[!]` | Write Claude's comments on the current file if it has none (`!` writes them again) |
 | `:ReviewComments` | Show or hide Claude's comments |
 | `:ReviewAbout` | Summary, what changed, and commits of the current file |
-| `:[range]ReviewNote` | Add a note on the line or range |
-| `:ReviewNotes` | List notes: open, resolve, edit, delete |
 | `:[range]ReviewAsk` | Ask Claude about the file or the lines |
 | `:ReviewAsks` | Questions you asked, with Claude's answers |
 | `:ReviewPrepare[!] [overview\|comments\|quiz\|stop]` | Prepare the review in the background (see below) |
@@ -150,7 +147,6 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `]f` / `[f` | Next / previous file of the review |
 | `<leader>rr` | Toggle read |
 | `<leader>rn` | Mark read and open the next unread file |
-| `<leader>rN` | Add a note (normal or visual) |
 | `<leader>ra` | Ask Claude (normal or visual) |
 | `<leader>re` | Write Claude's comments (asks before writing them again) |
 | `<leader>ri` | About the file: summary, what changed, commits |
@@ -171,7 +167,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `gK` | About the file under the cursor |
 | `gA` / `gS` | Prepare the review / stop |
 | `gO` / `gQ` | Overview of the changes / quiz |
-| `gL` / `gN` | Progress / notes |
+| `gL` | Progress |
 | `gB` | Review other branches |
 | `g?` | Help |
 | edit `[ ]` ↔ `[x]`, then `:w` | Save read marks (a folder's box marks everything inside it) |
@@ -235,25 +231,24 @@ require("reviewer").setup({
     fold_open = "▾", fold_closed = "▸",
     added = "+", removed = "-", removed_prefix = "- ",
     comment = "✦", pending = "…",
-    note = "●", question = "?", issue = "!", answer = "✦",
     action = "▶", stop = "■",
   },
   keymaps = {
     -- a string, a list of strings, or false to disable; only what you set changes
     file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
-             toggle_read = "<leader>rr", read_next = "<leader>rn", note = "<leader>rN",
+             toggle_read = "<leader>rr", read_next = "<leader>rn",
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
                 toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
                 explain = "gC", explain_folder = "gF", about = "gK",
                 prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
-                progress = "gL", notes = "gN", new_review = "gB", help = "g?" },
+                progress = "gL", new_review = "gB", help = "g?" },
     quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
              dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
              overview = "o", refs = { "1", "2", "3", "4" },
              self_correct = "+", self_partial = "~", self_wrong = "-", close = { "q", "<Esc>" } },
-    progress = { open = "<CR>", retry_mistakes = "m", notes = "gn", asks = "A" },
+    progress = { open = "<CR>", retry_mistakes = "m", asks = "A" },
     float = { close = { "q", "<Esc>" } },
     input = { submit = "<C-s>", submit_normal = "<CR>", cancel = { "q", "<Esc>" } },
   },
@@ -306,7 +301,6 @@ Every colour comes from a highlight group linked to a standard one, so the plugi
 | `ReviewerAdd` / `ReviewerAddSign` | `DiffAdd` / `Added` | Added lines and their sign |
 | `ReviewerDelete` / `ReviewerDeleteSign` | `DiffDelete` / `Removed` | Removed lines and their sign |
 | `ReviewerComment` / `ReviewerCommentTitle` | `DiagnosticVirtualTextInfo` / `DiagnosticInfo` | Claude's comments |
-| `ReviewerNote` / `ReviewerQuestion` / `ReviewerIssue` | `DiagnosticVirtualText{Warn,Hint,Error}` | Notes by kind |
 | `ReviewerHeader` / `ReviewerGroup` | `Title` | Titles and reading-order groups |
 | `ReviewerRead` / `ReviewerDim` | `Comment` | Read files, secondary text |
 | `ReviewerCurrent` | `CursorLine` | The file you are on |
@@ -351,7 +345,7 @@ Quizzes are JSON files named `quiz-<base>..<branch>.json` in the repository's `q
 
 `stdpath("data")/reviewer/<project>/`:
 
-- `state.json`: read marks, notes, quiz attempts with their history, questions asked to Claude
+- `state.json`: read marks, quiz attempts with their history, questions asked to Claude
 - `explain.json`: overviews of each review and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
 - `quizzes/`: the default place for quiz files
 

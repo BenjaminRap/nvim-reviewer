@@ -1,5 +1,5 @@
 -- Everything the review remembers between sessions, one folder per project:
---   state.json   read marks, notes, quiz attempts, questions asked to Claude
+--   state.json   read marks, quiz attempts, questions asked to Claude
 --   explain.json Claude's comments on each file (kept apart because it is large)
 local M = {}
 
@@ -34,7 +34,7 @@ local function write_json(path, data)
 end
 
 local DEFAULTS = {
-  state = function() return { version = 1, read = {}, notes = {}, attempts = {}, asks = {}, ui = {} } end,
+  state = function() return { version = 1, read = {}, attempts = {}, asks = {}, ui = {} } end,
   explain = function() return { version = 1, files = {}, steps = {} } end,
 }
 

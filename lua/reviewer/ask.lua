@@ -70,7 +70,9 @@ function M.ask_here(l1, l2)
   local sel = false
   local mode = vim.fn.mode()
   if l1 == nil and (mode == "v" or mode == "V" or mode == "\22") then
-    l1, l2 = require("reviewer.notes").range()
+    local a, b = vim.fn.line("v"), vim.fn.line(".")
+    vim.cmd("normal! \27")
+    l1, l2 = math.min(a, b), math.max(a, b)
     sel = true
   elseif l1 then sel = true end
   local title = ("%s%s"):format(ctx.file.path, sel and ((":%d"):format(l1) .. (l2 > l1 and ("-" .. l2) or "")) or "")

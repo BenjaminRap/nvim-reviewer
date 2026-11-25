@@ -41,7 +41,6 @@ local function set_keymaps(buf)
   keys.map(buf, "n", km.read_next, function() M.read_next() end, "mark read and open the next unread file")
   keys.map(buf, "n", km.explain, function() M.explain(false) end, "Claude's comments on this file")
   keys.map(buf, "n", km.about, function() M.about() end, "about this file")
-  keys.map(buf, { "n", "x" }, km.note, function() require("reviewer.notes").add_here() end, "add a note")
   keys.map(buf, { "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, "ask Claude")
   keys.map(buf, "n", km.browse, function() require("reviewer.browser").open_here() end, "review browser on this folder")
 end
