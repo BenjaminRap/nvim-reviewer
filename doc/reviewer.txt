@@ -491,7 +491,10 @@ claude                                              *reviewer-option-claude*
     `grade_tools`     Default: `""`.
     `batch_files`, `batch_chars`
                     size of one batch of files when preparing.
-                    Default: `6` files, `60000` characters.
+                    Default: `15` files, `120000` characters.
+    `usage_log`       one JSON line per call (use, models, cost, turns,
+                    tokens, prompt size) in `usage.jsonl` of the
+                    repository's data folder. Default: `true`.
     `max_parallel`    calls running at the same time. Default: `2`.
     `timeout_ms`      Default: 10 minutes.
     `extra_args`      more arguments for `claude`. Default: `{}`.

@@ -122,14 +122,14 @@ Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
 `:Review prepare` prepares the current review in the background, in three stages:
 
-1. **Overview.** One call reads the changes as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, one line per file on its role, and a reading path: stages (architecture, then each flow, then details and tests), each with its files in order and what to look at in each. A reviewed file shows its stage and what to look at above its first line. An overview written before the reading path existed has none: `:Review! prepare overview` writes it again.
-2. **Comments on every file.** Files are sent a few at a time (`batch_files`, `batch_chars`), together with the overview, so comments can explain how a file fits with the rest. Claude can open and search other files of the repo.
+1. **Overview.** One call reads the changes as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, one line per file on its role with the links to other files it checked while exploring (who uses it, what it relies on, as `path:line`), and a reading path: stages (architecture, then each flow, then details and tests), each with its files in order and what to look at in each. A reviewed file shows its stage and what to look at above its first line. An overview written before the reading path existed has none: `:Review! prepare overview` writes it again.
+2. **Comments on every file.** Files are sent in large batches, in reading order (`batch_files`, `batch_chars`), together with the overview and the links the overview found for those files, so comments can explain how a file fits with the rest without searching again. Claude can still open and search other files of the repo, but only for what the overview does not already say.
 3. **Quiz.** About 20 to 65 questions depending on the size of the changes. Each question is then checked locally: every `file:line` reference must exist on the reviewed branch, and every line of a code snippet must be found in the referenced files. Questions that fail are dropped, and the result says how many.
 
 Details:
 
 - **Stop and resume.** You can stop at any time with `:Review prepare stop` and run it again later. Files already commented for the same diff are skipped.
-- **Progress and cost.** The browser's title bar shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call.
+- **Progress and cost.** The browser's title bar shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call. Each call also adds a line to `usage.jsonl` in the repository's data folder (use, models, cost, turns, tokens, prompt size), to see where the cost goes (`usage_log = false` turns it off).
 - **Single stages.** `:Review prepare comments` runs one stage only.
 - **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.
 - **A quiz on several branches at once:** review the whole range, e.g. `:Review main feature-c`, and take its quiz.
@@ -218,8 +218,9 @@ require("reviewer").setup({
     ask_tools = "Read,Grep,Glob",     -- read-only tools for questions
     grade_tools = "",
     prepare_tools = "Read,Grep,Glob", -- for :Review prepare
-    batch_files = 6,                  -- files per call when preparing
-    batch_chars = 60000,
+    batch_files = 15,                 -- files per call when preparing (fewer calls: each pays Claude Code's setup)
+    batch_chars = 120000,
+    usage_log = true,                 -- one line per call in usage.jsonl (data folder)
     max_parallel = 2,
     timeout_ms = 600000,
   },

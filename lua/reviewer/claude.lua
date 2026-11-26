@@ -29,6 +29,28 @@ local function extract_json(text)
 end
 M.extract_json = extract_json
 
+-- One JSON line per call in <data_dir>/usage.jsonl: what each use costs.
+function M.log_usage(job, out)
+  local c = config.options.claude
+  if not c.usage_log then return end
+  local core = package.loaded["reviewer.core"]
+  local project = core and core.project
+  if not project then return end
+  local u = type(out.usage) == "table" and out.usage or {}
+  local entry = {
+    at = os.date("!%Y-%m-%dT%H:%M:%SZ"), use = job.opts.use, tag = job.opts.tag,
+    models = vim.tbl_keys(type(out.modelUsage) == "table" and out.modelUsage or {}),
+    cost = tonumber(out.total_cost_usd), turns = tonumber(out.num_turns), duration_ms = tonumber(out.duration_ms),
+    prompt_chars = #(job.prompt or ""),
+    input_tokens = u.input_tokens, output_tokens = u.output_tokens,
+    cache_read_tokens = u.cache_read_input_tokens, cache_write_tokens = u.cache_creation_input_tokens,
+    error = out.is_error and tostring(out.result or out.subtype or "error"):sub(1, 200) or nil,
+  }
+  vim.fn.mkdir(project.data_dir, "p")
+  local f = io.open(project.data_dir .. "/usage.jsonl", "a")
+  if f then f:write(vim.json.encode(entry) .. "\n"); f:close() end
+end
+
 local function start(job)
   running = running + 1
   local c = config.options.claude
@@ -56,6 +78,7 @@ local function start(job)
       if not okj or type(out) ~= "table" then return job.cb("could not read Claude's reply") end
       local meta = { cost = tonumber(out.total_cost_usd) or 0, models = vim.tbl_keys(out.modelUsage or {}) }
       M.total_cost = M.total_cost + meta.cost
+      pcall(M.log_usage, job, out)
       if out.is_error then return job.cb(tostring(out.result or out.subtype or "Claude returned an error")) end
       local text = out.result or ""
       if job.opts.json then

@@ -88,9 +88,10 @@ local function run_overview(job, step, next_stage)
     ' "flows": [{"name": "short name", "description": "2-4 sentences: the path through the code from start to end, naming the files involved"}],',
     ' "concepts": ["key models, rules or ideas a reviewer must understand"],',
     ' "risks": ["things a reviewer should check carefully, with path:line"],',
-    ' "files": [{"path": "exact path from the list above", "role": "one sentence: what this file does in this step"}],',
+    ' "files": [{"path": "exact path from the list above", "role": "one sentence: what this file does in this step", "links": ["one cross-file fact you checked, with path:line, for example \"used by src/x.ts:42 (createCourse)\" or \"calls src/y.ts:10 (checkAccess)\""]}],',
     ' "path": [{"stage": "short title of a reading stage, for example \"Architecture: data model\" or \"Flow: creating a course\"", "why": "one sentence: what the reader understands after this stage", "files": [{"path": "exact path from the list above", "why": "one sentence: what to look at in this file"}]}]}',
     "Give one entry in \"files\" for every changed file listed above. Only state what the code shows.",
+    "In \"links\", give 1-5 facts per file about how it connects to other files (who uses it, what it relies on), each with path:line, that you checked while exploring. They are given to the calls that comment each file, so those calls do not have to search for them again.",
     "\"path\" is the order in which to read the files, for a reader who discovers the change: first the architecture (data model, shared types, contracts between layers), then each main flow followed through the layers in the order the code runs, then the remaining details, then the tests. Put every changed file listed above in exactly one stage.",
   }, "\n")
   claude.run(prompt, { json = true, tools = config.options.claude.prepare_tools, cwd = job.dir, tag = job.tag, use = "overview" }, function(err, res, meta)
@@ -101,7 +102,11 @@ local function run_overview(job, step, next_stage)
     end
     local roles = {}
     for _, fr in ipairs(type(res.files) == "table" and res.files or {}) do
-      if type(fr) == "table" and fr.path then roles[#roles + 1] = { path = tostring(fr.path), role = tostring(fr.role or "") } end
+      if type(fr) == "table" and fr.path then
+        local links = {}
+        for _, l in ipairs(type(fr.links) == "table" and fr.links or {}) do links[#links + 1] = tostring(l) end
+        roles[#roles + 1] = { path = tostring(fr.path), role = tostring(fr.role or ""), links = links }
+      end
     end
     local flows = {}
     for _, fl in ipairs(type(res.flows) == "table" and res.flows or {}) do
@@ -152,7 +157,7 @@ local function run_comments(job, step, next_stage)
   if #todo == 0 then return next_stage() end
   -- batches by size
   local batches, cur, size = {}, {}, 0
-  local maxc, maxf = config.options.claude.batch_chars or 60000, config.options.claude.batch_files or 6
+  local maxc, maxf = config.options.claude.batch_chars or 120000, config.options.claude.batch_files or 15
   for _, ctx in ipairs(todo) do
     local section = explain.file_section(ctx)
     if #cur > 0 and (size + #section > maxc or #cur >= maxf) then
@@ -164,7 +169,6 @@ local function run_comments(job, step, next_stage)
   end
   if #cur > 0 then batches[#batches + 1] = cur end
   local pending = #batches
-  local context = explain.step_context(core.project, step)
   for _, batch in ipairs(batches) do
     local sections, by_path = {}, {}
     for _, b in ipairs(batch) do
@@ -172,6 +176,7 @@ local function run_comments(job, step, next_stage)
       by_path[b.ctx.file.path] = b.ctx
       explain.status[explain.key(b.ctx)] = "pending"
     end
+    local context = explain.step_context(core.project, step, nil, by_path)
     local prompt = table.concat({
       "You explain code changes to a developer who is reviewing their team's code and wants to understand it deeply.",
       "",

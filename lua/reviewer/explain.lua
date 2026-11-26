@@ -39,7 +39,9 @@ function M.step_hash(project, step)
 end
 
 -- Shared context: project, step, and the overview when there is one.
-function M.step_context(project, step, max_roles)
+-- links_for: { [path] = true }, the files whose cross-file facts (found by
+-- the overview) are added, so the call does not search for them again.
+function M.step_context(project, step, max_roles, links_for)
   local lines = {
     ("Repository: %s. The review covers the changes of branch %s compared with %s (%s..%s)."):format(project.name, step.branch, step.base_branch, step.base_ref, step.head_ref),
     "Your working directory holds the code at the head of the reviewed branch: you may open, search and read any file to understand how the code is used, but do not modify anything.",
@@ -58,6 +60,19 @@ function M.step_context(project, step, max_roles)
       for i, fr in ipairs(o.files) do
         if max_roles and i > max_roles then break end
         lines[#lines + 1] = "- " .. (fr.path or "") .. ": " .. (fr.role or "")
+      end
+    end
+    if links_for and o.files then
+      local facts = {}
+      for _, fr in ipairs(o.files) do
+        if links_for[fr.path] and fr.links and #fr.links > 0 then
+          facts[#facts + 1] = "- " .. fr.path .. ":"
+          for _, l in ipairs(fr.links) do facts[#facts + 1] = "  - " .. l end
+        end
+      end
+      if #facts > 0 then
+        lines[#lines + 1] = "Cross-file facts already checked while writing the overview (use them instead of searching again):"
+        vim.list_extend(lines, facts)
       end
     end
   end
@@ -82,7 +97,8 @@ M.COMMENT_RULES = table.concat({
   "Rules for comments:",
   "- Comment every block that is not trivial; group tiny related blocks (imports, renames) into one comment on the first of them.",
   "- For a large block (more than about 25 lines, for example a new file), add one comment at the start of each logical section (function, component, route handler, type, test case), with \"line\" set to that section's first new line number. Otherwise \"line\" may be omitted.",
-  "- Each comment: 1-4 sentences in plain English saying what the code does, how, and why; point out anything worth double-checking (edge cases, security, error handling). When it helps, say which other file uses this code or is used by it (path:line), after checking it with your tools.",
+  "- Each comment: 1-4 sentences in plain English saying what the code does, how, and why; point out anything worth double-checking (edge cases, security, error handling). When it helps, say which other file uses this code or is used by it (path:line).",
+  "- Use the overview and the cross-file facts above first. Open or search other files only when what you need is not there; do not check again what they already say.",
   "- Only state what the code shows. Never invent behaviour. At most 45 comments per file.",
 }, "\n")
 
@@ -106,7 +122,7 @@ local function prompt(ctx)
   return table.concat({
     "You explain code changes to a developer who is reviewing their team's code and wants to understand it deeply.",
     "",
-    M.step_context(ctx.project, ctx.step, 80),
+    M.step_context(ctx.project, ctx.step, 80, { [ctx.file.path] = true }),
     "",
     M.LISTING_HELP,
     "",
