@@ -161,8 +161,11 @@ prepare it.
 Comments on a file ~
 `<leader>re` in a file, `gC` in the browser, or |:Review-explain| writes a
 summary of the file, what changed, and a comment above each changed block.
-They are saved and tied to the diff they describe; they are written again
-only if the diff changes or on request (|:Review-explain|!).
+They are saved per block. When the diff changes (a rebase, new commits), a
+block whose content did not change keeps its comments, moved to its new
+lines, and only new or changed blocks are commented again; a file whose
+blocks all stayed the same is updated without calling Claude. |:Review-explain|!
+writes every comment of the file again.
 
 Preparing a review ~
 |:Review-prepare| prepares the current review in the background:

@@ -159,6 +159,7 @@ local function run_comments(job, step, next_stage)
   local batches, cur, size = {}, {}, 0
   local maxc, maxf = config.options.claude.batch_chars or 120000, config.options.claude.batch_files or 15
   for _, ctx in ipairs(todo) do
+    ctx.reuse = not job.force and explain.reusable(ctx) or nil
     local section = explain.file_section(ctx)
     if #cur > 0 and (size + #section > maxc or #cur >= maxf) then
       batches[#batches + 1] = cur
@@ -199,7 +200,7 @@ local function run_comments(job, step, next_stage)
         for _, entry in ipairs(res.files) do
           local ctx = type(entry) == "table" and by_path[entry.path]
           if ctx and type(entry.comments) == "table" then
-            explain.store(ctx, entry)
+            explain.store(ctx, entry, ctx.reuse)
             got[entry.path] = true
           end
         end

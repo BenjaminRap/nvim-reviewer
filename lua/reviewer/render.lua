@@ -223,11 +223,7 @@ function M.draw(buf)
     if e and e.comments then
       local by_hunk = {}
       for _, h in ipairs(ctx.hunks) do by_hunk[h.id] = h end
-      -- Claude sometimes writes "b3", "B 3" or "3" for the block "B3"
-      local function block_id(b)
-        b = tostring(b or ""):upper():gsub("%s", "")
-        return b:match("^%d+$") and ("B" .. b) or b
-      end
+      local block_id = require("reviewer.explain").block_id
       -- the block whose added lines contain this line (the given one first)
       local function block_of(line, h)
         local function inside(x) return x and x.new_count > 0 and line >= x.new_start and line < x.new_start + x.new_count end

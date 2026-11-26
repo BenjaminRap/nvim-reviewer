@@ -129,6 +129,7 @@ Claude only runs when you ask, unless you configure otherwise (`ai` options).
 Details:
 
 - **Stop and resume.** You can stop at any time with `:Review prepare stop` and run it again later. Files already commented for the same diff are skipped.
+- **When the branch moves** (a rebase, new commits), comments are kept per block: a block whose content did not change keeps its comments, moved to its new lines, and only new or changed blocks are sent to Claude (Claude still sees the whole file). A file whose blocks all stayed the same is updated without any Claude call.
 - **Progress and cost.** The browser's title bar shows the progress (`comments 12/40 · $0.84`). The cost is the one Claude Code reports for each call. Each call also adds a line to `usage.jsonl` in the repository's data folder (use, models, cost, turns, tokens, prompt size), to see where the cost goes (`usage_log = false` turns it off).
 - **Single stages.** `:Review prepare comments` runs one stage only.
 - **Existing quizzes are kept.** The quiz stage never overwrites an existing quiz unless you add `!`. `!` also writes the overview and comments again.

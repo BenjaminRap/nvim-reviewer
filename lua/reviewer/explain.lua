@@ -1,5 +1,7 @@
 -- Claude's comments on a file: a summary, what changed, and a comment per change block.
--- Written once per file and saved; written again only if the diff changes or on request.
+-- Written once per file and saved. Each comment keeps a fingerprint of its
+-- block, so when the diff changes (a rebase, a new commit) the comments of
+-- unchanged blocks are kept and only new or changed blocks go to Claude.
 local config = require("reviewer.config")
 local state = require("reviewer.state")
 local claude = require("reviewer.claude")
@@ -14,9 +16,73 @@ M.STATUS = STATUS
 
 function M.key(ctx) return ctx.step.id .. "|" .. ctx.file.path end
 
-function M.get(ctx)
+-- Fingerprint of a change block: its removed and added lines (not its place).
+function M.block_hash(h)
+  return vim.fn.sha256(table.concat(h.removed, "\n") .. "\0" .. table.concat(h.added, "\n"))
+end
+
+-- The block "B3" (Claude sometimes writes "b3", "B 3" or "3").
+local function block_id(b)
+  b = tostring(b or ""):upper():gsub("%s", "")
+  return b:match("^%d+$") and ("B" .. b) or b
+end
+M.block_id = block_id
+
+-- After the diff of a file changed: the comments of blocks whose content did
+-- not change, moved to where those blocks are now, and the blocks that still
+-- need comments. nil when there is nothing to reuse (no saved comments, the
+-- same diff, comments saved before blocks had fingerprints, a deleted file).
+function M.reusable(ctx)
   local e = state.explain(ctx.project).files[M.key(ctx)]
-  if e and e.hash == ctx.hash then return e end
+  if not e or e.hash == ctx.hash or type(e.blocks) ~= "table" or ctx.deleted then return nil end
+  local known, by = {}, {}
+  for _, b in ipairs(e.blocks) do known[b] = true end
+  for _, c in ipairs(e.comments or {}) do
+    if c.bh then by[c.bh] = by[c.bh] or {}; table.insert(by[c.bh], c) end
+  end
+  local kept, todo = {}, {}
+  for _, h in ipairs(ctx.hunks) do
+    local bh = M.block_hash(h)
+    if known[bh] then
+      for _, c in ipairs(by[bh] or {}) do
+        kept[#kept + 1] = { block = h.id, line = c.off and (h.new_start + c.off) or nil, text = c.text, bh = bh, off = c.off }
+      end
+    else
+      todo[#todo + 1] = h.id
+    end
+  end
+  return { entry = e, kept = kept, todo = todo }
+end
+
+-- Comments saved before blocks had fingerprints: add them (same diff, so the blocks are known).
+local function add_fingerprints(ctx, e)
+  local by_id = {}
+  for _, h in ipairs(ctx.hunks or {}) do by_id[h.id] = h end
+  e.blocks = {}
+  for _, h in ipairs(ctx.hunks or {}) do e.blocks[#e.blocks + 1] = M.block_hash(h) end
+  for _, c in ipairs(e.comments or {}) do
+    local h = by_id[block_id(c.block)]
+    if h then
+      c.bh = M.block_hash(h)
+      if c.line and c.line >= h.new_start and c.line < h.new_start + math.max(h.new_count, 1) then c.off = c.line - h.new_start end
+    end
+  end
+  state.save(ctx.project, "explain")
+end
+
+function M.get(ctx)
+  local key = M.key(ctx)
+  local e = state.explain(ctx.project).files[key]
+  if e and e.hash == ctx.hash then
+    if type(e.blocks) ~= "table" and not ctx.deleted and ctx.hunks then add_fingerprints(ctx, e) end
+    return e
+  end
+  -- every block unchanged (lines moved, or the diff around them changed): no Claude call
+  local r = e and M.reusable(ctx)
+  if r and #r.todo == 0 then
+    M.store(ctx, { summary = e.summary, changes = e.changes, comments = {} }, r)
+    return state.explain(ctx.project).files[key]
+  end
   return nil
 end
 
@@ -97,6 +163,9 @@ function M.file_section(ctx)
     body = "This file is DELETED: give only \"summary\" (what it did) and \"changes\" (why it is gone and what replaces it, if the code shows it), with an empty \"comments\" list. Its old content starts with:\n" .. body
   else
     body = diff.listing(ctx.lines, ctx.hunks, 150000)
+    if ctx.reuse and #ctx.reuse.todo < #ctx.hunks then
+      body = ("Only blocks %s are new or changed since this file was last commented: write comments for these blocks only (the other blocks keep their comments), and write \"summary\" and \"changes\" again for the whole file.\n"):format(table.concat(ctx.reuse.todo, ", ")) .. body
+    end
   end
   return table.concat({
     ("=== FILE %s (%s%s, +%d −%d)"):format(f.path, STATUS[f.status] or f.status, f.old and (" from " .. f.old) or "", f.add, f.del),
@@ -117,18 +186,35 @@ M.COMMENT_RULES = table.concat({
   "- A deleted file gets no comments, only its summary and changes.",
 }, "\n")
 
--- Save Claude's reply for one file.
-function M.store(ctx, res)
+-- Save Claude's reply for one file. reuse (from M.reusable): the comments
+-- kept from before are added, and Claude's comments are kept only on the
+-- blocks it was asked about.
+function M.store(ctx, res, reuse)
+  local by_id = {}
+  for _, h in ipairs(ctx.hunks or {}) do by_id[h.id] = h end
+  local asked
+  if reuse then
+    asked = {}
+    for _, id in ipairs(reuse.todo) do asked[id] = true end
+  end
   local comments = {}
   for _, c in ipairs(type(res.comments) == "table" and res.comments or {}) do
     if type(c) == "table" and c.text and c.text ~= "" then
-      comments[#comments + 1] = { block = tostring(c.block or ""), line = tonumber(c.line), text = tostring(c.text) }
+      local id = block_id(c.block)
+      local h, line = by_id[id], tonumber(c.line)
+      if not asked or asked[id] then
+        local off = (h and line and line >= h.new_start and line < h.new_start + math.max(h.new_count, 1)) and (line - h.new_start) or nil
+        comments[#comments + 1] = { block = id, line = line, text = tostring(c.text), bh = h and M.block_hash(h) or nil, off = off }
+      end
     end
   end
+  if reuse then vim.list_extend(comments, reuse.kept) end
+  local blocks = {}
+  for _, h in ipairs(ctx.hunks or {}) do blocks[#blocks + 1] = M.block_hash(h) end
   state.explain(ctx.project).files[M.key(ctx)] = {
     hash = ctx.hash, step = ctx.step.id, path = ctx.file.path,
     summary = tostring(res.summary or ""), changes = tostring(res.changes or ""),
-    comments = comments, at = state.now(),
+    comments = comments, blocks = blocks, at = state.now(),
   }
   state.save(ctx.project, "explain")
 end
@@ -162,6 +248,7 @@ function M.ensure(ctx, opts)
   if not opts.force and M.get(ctx) then return end
   if not opts.force and not opts.manual and not config.options.ai.comment_on_open then return end
   M.status[key] = "pending"
+  ctx.reuse = not opts.force and M.reusable(ctx) or nil
   require("reviewer.core").changed()
   if not opts.prefetch then ui.notify("Claude is commenting " .. f.path .. "…") end
   claude.run(prompt(ctx), { json = true, tools = config.options.claude.explain_tools, cwd = ctx.dir, use = "comments" }, function(err, res)
@@ -169,7 +256,7 @@ function M.ensure(ctx, opts)
       M.status[key] = "error: " .. (err or "unexpected reply")
       if not opts.prefetch then ui.notify("comments for " .. f.path .. " failed: " .. (err or "unexpected reply"), vim.log.levels.WARN) end
     else
-      M.store(ctx, res)
+      M.store(ctx, res, ctx.reuse)
       M.status[key] = nil
       if not opts.prefetch then ui.notify("comments ready for " .. f.path) end
       if config.options.ai.prefetch_next and not opts.force and not opts.prefetch then M.prefetch_after(ctx) end
