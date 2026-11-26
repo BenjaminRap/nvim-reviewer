@@ -10,7 +10,7 @@ local ui = require("reviewer.ui")
 local M = { last_win = nil }
 
 local function is_panel(win)
-  return require("reviewer.browser").is_browser(vim.api.nvim_win_get_buf(win))
+  return win == require("reviewer.keybar").win or require("reviewer.browser").is_browser(vim.api.nvim_win_get_buf(win))
 end
 
 function M.main_win()
@@ -44,6 +44,15 @@ local function set_keymaps(buf)
   keys.map(buf, { "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, "ask Claude")
   keys.map(buf, "n", km.browse, function() require("reviewer.browser").open_here() end, "review browser on this folder")
   keys.map(buf, "n", km.toggle_split, function() require("reviewer.split").toggle() end, "inline changes / side by side")
+  keys.map(buf, "n", km.comments_style, function() M.toggle_comments_style() end, "comments as boxes / hover markers")
+  keys.map(buf, "n", km.help, function() require("reviewer.keybar").help("file") end, "every key")
+  local group = vim.api.nvim_create_augroup("reviewer_hover_" .. buf, { clear = true })
+  vim.api.nvim_create_autocmd("CursorMoved", { group = group, buffer = buf, callback = function() render.hover(buf) end })
+  vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "InsertEnter" }, { group = group, buffer = buf, callback = function() render.close_hover() end })
+  vim.api.nvim_create_autocmd("WinScrolled", { group = group, buffer = buf, callback = function()
+    render.close_hover()
+    if vim.api.nvim_get_current_buf() == buf then render.hover(buf) end
+  end })
 end
 
 function M.attach(buf, ctx)
@@ -214,6 +223,15 @@ function M.toggle_comments()
   config.options.show_comments = not config.options.show_comments
   render.draw_all()
   ui.notify("Claude's comments " .. (config.options.show_comments and "shown" or "hidden"))
+end
+
+function M.toggle_comments_style()
+  config.options.comments = config.options.comments == "hover" and "inline" or "hover"
+  config.options.show_comments = true
+  render.close_hover()
+  render.draw_all()
+  render.hover(vim.api.nvim_get_current_buf())
+  ui.notify("Claude's comments: " .. (config.options.comments == "hover" and "marker, shown when the cursor is on its line" or "boxes above the code"))
 end
 
 -- About the current file: summary, what changed, commits.

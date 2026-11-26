@@ -31,6 +31,7 @@ function M.setup(opts)
     callback = function(ev) require("reviewer.core").buffers[ev.buf] = nil end,
   })
   vim.api.nvim_create_autocmd("VimResized", { group = group, callback = function() if require("reviewer.core").project then require("reviewer.render").draw_all() end end })
+  require("reviewer.keybar").setup(group)
   vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = function() require("reviewer.state").flush_all() end })
 end
 
@@ -158,6 +159,7 @@ M.commands = {
   read_next = function() if need_project() then require("reviewer.review").read_next() end end,
   explain = function(force) if need_project() then require("reviewer.review").explain(force) end end,
   comments = function() if need_project() then require("reviewer.review").toggle_comments() end end,
+  keys = function() if need_project() then require("reviewer.keybar").toggle() end end,
   about = function() if need_project() then require("reviewer.review").about() end end,
   ask = function(l1, l2) if need_project() then require("reviewer.ask").ask_here(l1, l2) end end,
   asks = function() if need_project() then require("reviewer.ask").list() end end,

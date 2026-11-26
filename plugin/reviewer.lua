@@ -29,6 +29,7 @@ cmd("ReviewEdit", function() c().edit() end, { desc = "Allow changes in the curr
 cmd("ReviewReadNext", function() c().read_next() end, { desc = "Mark read and open the next unread file" })
 cmd("ReviewExplain", function(o) c().explain(o.bang) end, { bang = true, desc = "Claude's comments on this file (! writes them again)" })
 cmd("ReviewComments", function() c().comments() end, { desc = "Show or hide Claude's comments" })
+cmd("ReviewKeys", function() c().keys() end, { desc = "Show or hide the key bar at the bottom" })
 cmd("ReviewAbout", function() c().about() end, { desc = "Summary and commits of the current file" })
 cmd("ReviewAsk", function(o) c().ask(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, { range = true, desc = "Ask Claude about this file or the selected lines" })
 cmd("ReviewAsks", function() c().asks() end, { desc = "Questions you asked Claude, with answers" })

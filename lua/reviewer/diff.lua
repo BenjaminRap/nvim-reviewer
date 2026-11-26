@@ -72,6 +72,59 @@ function M.listing(lines, hunks, max_chars)
   return s
 end
 
+-- Words, runs of spaces, and single punctuation characters.
+local function tokens(s)
+  local out, i = {}, 1
+  while i <= #s do
+    local _, e = s:find("^[%w_\128-\255]+", i)
+    if not e then _, e = s:find("^%s+", i) end
+    e = e or i
+    out[#out + 1] = s:sub(i, e)
+    i = e + 1
+  end
+  return out
+end
+
+-- Byte range {start_col, end_col} (0-based, end exclusive) of `count` tokens from `from`.
+local function span(toks, from, count)
+  local col = 0
+  for i = 1, from - 1 do col = col + #toks[i] end
+  local len = 0
+  for i = from, from + count - 1 do len = len + #toks[i] end
+  return { col, col + len }
+end
+
+-- What changed inside a line, GitHub style: returns the ranges of `old` that were
+-- removed and the ranges of `new` that were added, or nil when the two lines are
+-- too different for that to help (the whole line is then the change).
+function M.inline(old, new)
+  if old == new then return {}, {} end
+  local a, b = tokens(old), tokens(new)
+  if #a == 0 or #b == 0 or #a + #b > 2000 then return nil end
+  local ok, idx = pcall(vim.diff, table.concat(a, "\n") .. "\n", table.concat(b, "\n") .. "\n", { result_type = "indices" })
+  if not ok then return nil end
+  local ra, rb, changed = {}, {}, 0
+  for _, d in ipairs(idx) do
+    local sa, ca, sb, cb = d[1], d[2], d[3], d[4]
+    if ca > 0 then local r = span(a, sa, ca); ra[#ra + 1] = r; changed = changed + r[2] - r[1] end
+    if cb > 0 then local r = span(b, sb, cb); rb[#rb + 1] = r; changed = changed + r[2] - r[1] end
+  end
+  -- mostly rewritten: highlighting nearly everything is noise
+  if changed > 0.6 * (#old + #new) then return nil end
+  return ra, rb
+end
+
+-- Pairs a hunk's removed and added lines in order, like GitHub, and keeps the
+-- changed ranges: h.inline_removed[i] and h.inline_added[i] (nil = whole line).
+function M.add_inline(h)
+  if h.inline_removed then return h end
+  h.inline_removed, h.inline_added = {}, {}
+  for i = 1, math.min(#h.removed, #h.added) do
+    h.inline_removed[i], h.inline_added[i] = M.inline(h.removed[i], h.added[i])
+  end
+  return h
+end
+
 -- Plain numbered text, for quiz excerpts and answers.
 function M.numbered(lines, from, to)
   local out = {}

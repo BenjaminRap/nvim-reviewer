@@ -89,6 +89,7 @@ Reviewed files are read-only by default (`readonly = true`). An edit in the hidd
 | `:ReviewRead` / `:ReviewReadNext` | Toggle the read mark / mark read and open the next unread file |
 | `:ReviewExplain[!]` | Write Claude's comments on the current file if it has none (`!` writes them again) |
 | `:ReviewComments` | Show or hide Claude's comments |
+| `:ReviewKeys` | Show or hide the key bar at the bottom |
 | `:ReviewAbout` | Summary, what changed, and commits of the current file |
 | `:[range]ReviewAsk` | Ask Claude about the file or the lines |
 | `:ReviewAsks` | Questions you asked, with Claude's answers |
@@ -158,6 +159,10 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<leader>ri` | About the file: summary, what changed, commits |
 | `-` | Open the browser on the file's folder |
 | `<leader>rs` | Inline changes / side by side |
+| `<leader>rc` | Claude's comments as boxes / as markers shown on hover |
+| `g?` | Every key, in a float |
+
+**Key bar.** While you are in a reviewed file, the browser or the quiz, a bar at the bottom of the screen lists their keys, like lazygit. It is a real window, so it never hides code, and focus never stays in it. `key_hints = false` turns it off, `:ReviewKeys` hides or shows it.
 
 **In the browser** (`keymaps.browser`). Its text is editable for read marks, so every editing and moving key works as in any buffer; the plugin uses oil's keys and `g` keys:
 
@@ -219,6 +224,11 @@ require("reviewer").setup({
     grade_open_answers = true,  -- false: you grade open answers yourself
   },
   show_comments = true,         -- Claude's comments above the code
+  comments = "inline",          -- or "hover": a ✦ marker at the end of the line, the comment opens
+                                --   in a float when the cursor is on that line
+  key_hints = true,             -- the key bar at the bottom
+  inline_changes = true,        -- changed words drawn stronger inside a changed line
+  colors = "colorscheme",       -- or "github"
   show_removed = true,          -- removed lines shown in place, in red
   readonly = true,              -- reviewed files cannot be changed (:ReviewEdit unlocks one)
   layout = "inline",            -- or "split": before | after, in Neovim's diff mode
@@ -247,7 +257,7 @@ require("reviewer").setup({
     file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
              toggle_read = "<leader>rr", read_next = "<leader>rn",
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-",
-             toggle_split = "<leader>rs" },
+             toggle_split = "<leader>rs", comments_style = "<leader>rc", help = "g?" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
                 toggle_view = "gs", commits = "gl", toggle_unchanged = "g.", toggle_generated = "gG",
@@ -306,10 +316,14 @@ opts = {
 
 Every colour comes from a highlight group linked to a standard one, so the plugin follows your colorscheme. Override any of them with `vim.api.nvim_set_hl(0, "ReviewerAdd", { ... })`.
 
+`colors = "github"` uses GitHub's diff colours instead (light or dark, from `background`). Inside a changed line, the changed words are drawn a little stronger, as on GitHub; `inline_changes = false` turns that off.
+
 | Group | Default link | Used for |
 |---|---|---|
 | `ReviewerAdd` / `ReviewerAddSign` | `DiffAdd` / `Added` | Added lines and their sign |
 | `ReviewerDelete` / `ReviewerDeleteSign` | `DiffDelete` / `Removed` | Removed lines and their sign |
+| `ReviewerKey` / `ReviewerKeyDesc` / `ReviewerKeyBar` | `Special` / `Comment` / `NormalFloat` | The key bar |
+| `ReviewerAddText` / `ReviewerDeleteText` | the line colour blended with `Added` / `Removed` | Changed words inside a changed line |
 | `ReviewerComment` / `ReviewerCommentTitle` | `DiagnosticVirtualTextInfo` / `DiagnosticInfo` | Claude's comments |
 | `ReviewerHeader` / `ReviewerGroup` | `Title` | Titles and reading-order groups |
 | `ReviewerRead` / `ReviewerDim` | `Comment` | Read files, secondary text |

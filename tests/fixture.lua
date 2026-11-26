@@ -54,7 +54,7 @@ end
 function M.review(opts)
   if not M.root then M.create() end
   vim.fn.chdir(M.root)
-  require("reviewer").setup(vim.tbl_deep_extend("force", { deps = { install = false }, ai = { on_start = "never" } }, opts or {}))
+  require("reviewer").setup(vim.tbl_deep_extend("force", { deps = { install = false }, ai = { on_start = "never" }, key_hints = false }, opts or {}))
   return require("reviewer").start_review("main", "feature")
 end
 

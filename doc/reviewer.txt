@@ -283,6 +283,9 @@ Keys: |reviewer-keys-progress|.
 :ReviewComments                                               *:ReviewComments*
     Show or hide Claude's comments.
 
+:ReviewKeys                                                       *:ReviewKeys*
+    Show or hide the key bar at the bottom of the screen.
+
 :ReviewAbout                                                     *:ReviewAbout*
     Summary, what changed, and commits of the current file.
 
@@ -359,6 +362,24 @@ deps                                                  *reviewer-option-deps*
 
 show_comments                                *reviewer-option-show_comments*
     Show Claude's comments above the code. Default: `true`.
+
+comments                                          *reviewer-option-comments*
+    `"inline"`: comment boxes above the code. `"hover"`: a marker at the
+    end of the line, and the comment opens in a float when the cursor is on
+    that line. `<leader>rc` switches. Default: `"inline"`.
+
+key_hints                                        *reviewer-option-key_hints*
+    A bar at the bottom of the screen listing the keys of the current
+    reviewed file, browser or quiz, like lazygit. It is a real window, so
+    it never hides code. |:ReviewKeys| hides or shows it. Default: `true`.
+
+inline_changes                              *reviewer-option-inline_changes*
+    Inside a changed line, draw the changed words stronger, like GitHub.
+    Default: `true`.
+
+colors                                              *reviewer-option-colors*
+    `"colorscheme"` or `"github"` (GitHub's diff colours, light or dark from
+    'background'). Default: `"colorscheme"`.
 
 show_removed                                  *reviewer-option-show_removed*
     Show removed lines in place. Default: `true`.
@@ -454,6 +475,8 @@ In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
   `<leader>ri`     about the file                      `about`
   `-`              browser on the file's folder        `browse`
   `<leader>rs`     inline / side by side               `toggle_split`
+  `<leader>rc`     comments as boxes / markers         `comments_style`
+  `g?`             every key, in a float               `help`
 
 In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   <CR>           enter a folder / open a file        `open`
@@ -507,9 +530,16 @@ Floats (`keymaps.float`, `keymaps.input`)
 
 Every colour comes from a group linked to a standard one, so the plugin
 follows your colorscheme. Override any of them with |nvim_set_hl()|.
+`colors = "github"` uses GitHub's diff colours instead. `inline_changes =
+false` stops highlighting the changed words inside a changed line.
 
   ReviewerAdd, ReviewerAddSign          added lines (DiffAdd, Added)
   ReviewerDelete, ReviewerDeleteSign    removed lines (DiffDelete, Removed)
+  ReviewerKey, ReviewerKeyDesc,         the key bar (Special, Comment,
+  ReviewerKeyBar                        NormalFloat)
+  ReviewerAddText, ReviewerDeleteText   changed words inside a changed line
+                                        (line colour blended with Added,
+                                        Removed)
   ReviewerComment, ReviewerCommentTitle Claude's comments
                                         (DiagnosticVirtualTextInfo,
                                         DiagnosticInfo)
