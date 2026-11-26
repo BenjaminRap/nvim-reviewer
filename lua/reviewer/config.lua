@@ -57,7 +57,7 @@ M.defaults = {
   key_hints = true, -- a bar at the bottom listing the keys of the current review buffer (like lazygit)
   show_removed = true, -- removed lines shown in place, in red
   inline_changes = true, -- inside a changed line, the changed words are a little stronger (like GitHub)
-  colors = "colorscheme", -- "colorscheme" (diff colours of your colorscheme) or "github" (GitHub's colours)
+  colors = "colorscheme", -- "colorscheme" (diff colours of your colorscheme), "github" (GitHub's colours) or "vivid" (green and red mixed into your background)
   layout = "inline", -- "inline" (changes drawn in the file) or "split" (before | after, Neovim's diff mode)
   -- Reviewed files cannot be changed: they may be in the hidden checkout (an edit
   -- there is on no branch) or in your own checkout (an edit changes your working

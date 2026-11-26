@@ -56,6 +56,22 @@ function M.setup_highlights()
       else vim.api.nvim_set_hl(0, k, { bg = c }) end
     end
   end
+
+  -- A bright green and red mixed into your own background: the lines keep the
+  -- background's tint but stand out from it, whatever the colorscheme.
+  if config.options.colors == "vivid" then
+    local dark = vim.o.background == "dark"
+    local bg = get("Normal").bg or (dark and 0x1a1b26 or 0xffffff) -- transparent background: a guess
+    local green, red = dark and 0x56d364 or 0x1a7f37, dark and 0xf85149 or 0xcf222e
+    local line, text = dark and 0.22 or 0.16, dark and 0.45 or 0.32
+    local hl = {
+      ReviewerAdd = { bg = blend(bg, green, line) }, ReviewerAddText = { bg = blend(bg, green, text) },
+      ReviewerAddSign = { fg = green },
+      ReviewerDelete = { bg = blend(bg, red, line) }, ReviewerDeleteText = { bg = blend(bg, red, text) },
+      ReviewerDeleteSign = { fg = red },
+    }
+    for k, v in pairs(hl) do vim.api.nvim_set_hl(0, k, v) end
+  end
 end
 
 -- Virtual-line chunks for a removed line, with its changed ranges stronger.

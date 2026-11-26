@@ -143,6 +143,20 @@ describe("reviewed file", function()
     render.draw(buf)
   end)
 
+  it("mixes green and red into the background with colors = vivid", function()
+    local config, render = require("reviewer.config"), require("reviewer.render")
+    local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
+    vim.o.background = "dark"
+    vim.api.nvim_set_hl(0, "Normal", { bg = 0x1a1b26 })
+    config.options.colors = "vivid"
+    render.setup_highlights()
+    local function bg(n) return string.format("#%06x", vim.api.nvim_get_hl(0, { name = n }).bg) end
+    expect(bg("ReviewerAdd")).equal("#274334")
+    expect(bg("ReviewerDelete")).equal("#4b272e")
+    config.options.colors = "colorscheme"
+    vim.api.nvim_set_hl(0, "Normal", normal)
+  end)
+
   it("shows the keys of the file in a bar at the bottom", function()
     local config, keybar = require("reviewer.config"), require("reviewer.keybar")
     config.options.key_hints = true

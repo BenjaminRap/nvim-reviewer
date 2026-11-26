@@ -231,7 +231,7 @@ require("reviewer").setup({
   comments = "inline",          -- or "marker": a ✦ in the sign column, <leader>rh opens the comment
   key_hints = true,             -- the key bar at the bottom
   inline_changes = true,        -- changed words drawn stronger inside a changed line
-  colors = "colorscheme",       -- or "github"
+  colors = "colorscheme",       -- or "github", or "vivid": green and red mixed into your background
   show_removed = true,          -- removed lines shown in place, in red
   readonly = true,              -- reviewed files cannot be changed (:Review edit unlocks one)
   layout = "inline",            -- or "split": before | after, in Neovim's diff mode
@@ -320,7 +320,7 @@ opts = {
 
 Every colour comes from a highlight group linked to a standard one, so the plugin follows your colorscheme. Override any of them with `vim.api.nvim_set_hl(0, "ReviewerAdd", { ... })`.
 
-`colors = "github"` uses GitHub's diff colours instead (light or dark, from `background`). Inside a changed line, the changed words are drawn a little stronger, as on GitHub; `inline_changes = false` turns that off.
+`colors = "github"` uses GitHub's diff colours instead (light or dark, from `background`). `colors = "vivid"` mixes a bright green and red into your colorscheme's background, so changes stand out on any background. Inside a changed line, the changed words are drawn a little stronger, as on GitHub; `inline_changes = false` turns that off.
 
 | Group | Default link | Used for |
 |---|---|---|

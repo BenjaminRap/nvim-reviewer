@@ -387,8 +387,10 @@ inline_changes                              *reviewer-option-inline_changes*
     Default: `true`.
 
 colors                                              *reviewer-option-colors*
-    `"colorscheme"` or `"github"` (GitHub's diff colours, light or dark from
-    'background'). Default: `"colorscheme"`.
+    `"colorscheme"`, `"github"` (GitHub's diff colours, light or dark from
+    'background') or `"vivid"` (a bright green and red mixed into the
+    background of your colorscheme, so changes stand out on any
+    background). Default: `"colorscheme"`.
 
 show_removed                                  *reviewer-option-show_removed*
     Show removed lines in place. Default: `true`.
