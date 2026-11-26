@@ -9,7 +9,8 @@ local ns = vim.api.nvim_create_namespace("reviewer_keybar")
 
 -- { section, option name, label, in the bar }. A literal key instead of an
 -- option name is a string in [ ]. Only the entries marked true are in the bar
--- (the most used ones, like lazygit); the help float lists them all.
+-- (the most used ones, like lazygit), unless the key_bar option hides or adds
+-- some; the help float lists them all.
 local ENTRIES = {
   file = {
     { "file", { "next_change", "prev_change" }, "Change", true },
@@ -49,6 +50,26 @@ local LONG = {
   },
 }
 
+-- Option names of an entry: a pair has two, the literal "[x] :w" is "mark_read".
+local function names_of(e)
+  if type(e[2]) == "table" then return e[2] end
+  return { e[2] or "mark_read" }
+end
+
+local function listed(kind, which, e)
+  local list = ((config.options.key_bar or {})[which] or {})[kind] or {}
+  for _, n in ipairs(names_of(e)) do
+    if vim.tbl_contains(list, n) then return true end
+  end
+  return false
+end
+
+-- Is the entry in the bar: marked true or added by key_bar.show, and not hidden by key_bar.hide.
+local function in_bar(kind, e)
+  if listed(kind, "hide", e) then return false end
+  return e[4] == true or listed(kind, "show", e)
+end
+
 local function label_of(section, name)
   if not name then return section end
   -- a pair of options (next / previous): their first keys, "↓/↑"
@@ -84,13 +105,13 @@ local function kind_of(buf)
 end
 
 -- One line, like lazygit's: "Label: key | Label: key". Entries that do not fit
--- are dropped from the end, but the help entry is always kept.
+-- are dropped from the end, but the help entry is kept (unless hidden).
 local function chunks(kind, width)
   local items = {}
   for _, e in ipairs(ENTRIES[kind]) do
-    if e[4] then
+    if in_bar(kind, e) then
       local k = short(label_of(e[1], e[2]))
-      if k ~= "" then items[#items + 1] = { label = e[3], key = k } end
+      if k ~= "" then items[#items + 1] = { label = e[3], key = k, help = e[2] == "help" } end
     end
   end
   local sep = " | "
@@ -101,7 +122,11 @@ local function chunks(kind, width)
     end
     return w
   end
-  while #items > 1 and total(items) > width do table.remove(items, #items - 1) end
+  while #items > 1 and total(items) > width do
+    local last = #items
+    if items[last].help then last = last - 1 end
+    table.remove(items, last)
+  end
   local line, hls = " ", {}
   for i, it in ipairs(items) do
     if i > 1 then

@@ -166,7 +166,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<leader>rh` | Claude's comment of the code under the cursor; press again to go into it (`q` or `<Esc>` to leave) |
 | `g?` | Every key, in a float |
 
-**Key bar.** While you are in a reviewed file, the browser or the quiz, a bar at the bottom of the screen lists their keys, like lazygit. It is a real window, so it never hides code, and focus never stays in it. `key_hints = false` turns it off, `:Review keys` hides or shows it.
+**Key bar.** While you are in a reviewed file, the browser or the quiz, a bar at the bottom of the screen lists their keys, like lazygit. It is a real window, so it never hides code, and focus never stays in it. `key_hints = false` turns it off, `:Review keys` hides or shows it. `key_bar` chooses what it shows, by keymap option name: `hide` leaves out keys you already know (from oil, for example), `show` adds keys that are only in `g?` (see the options below).
 
 **In the browser** (`keymaps.browser`). Its text is editable for read marks, so every editing and moving key works as in any buffer; the plugin uses oil's keys and `g` keys:
 
@@ -230,6 +230,7 @@ require("reviewer").setup({
   show_comments = true,         -- Claude's comments above the code
   comments = "inline",          -- or "marker": a ✦ in the sign column, <leader>rh opens the comment
   key_hints = true,             -- the key bar at the bottom
+  key_bar = { hide = {}, show = {} }, -- per buffer: { browser = { "open", "parent" } }
   inline_changes = true,        -- changed words drawn stronger inside a changed line
   colors = "colorscheme",       -- or "github", or "vivid": green and red mixed into your background
   show_removed = true,          -- removed lines shown in place, in red

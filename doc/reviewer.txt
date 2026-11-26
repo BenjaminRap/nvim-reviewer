@@ -382,6 +382,20 @@ key_hints                                        *reviewer-option-key_hints*
     them all. It is a real window, so
     it never hides code. |:Review-keys| hides or shows it. Default: `true`.
 
+key_bar                                            *reviewer-option-key_bar*
+    Which keys the bar shows, per buffer kind (`file`, `browser`, `quiz`),
+    by keymap option name (|reviewer-option-keymaps|). `hide` leaves out keys you
+    already know (from oil, for example); `show` adds keys that are only in
+    `g?` by default. A next / previous pair is named by either option, and
+    the browser's `[x]` + `:w` is `mark_read`. `g?` still lists every key.
+>lua
+    key_bar = {
+      hide = { browser = { "open", "parent" } },
+      show = { file = { "about" } },
+    }
+<
+    Default: `{ hide = {}, show = {} }`.
+
 inline_changes                              *reviewer-option-inline_changes*
     Inside a changed line, draw the changed words stronger, like GitHub.
     Default: `true`.

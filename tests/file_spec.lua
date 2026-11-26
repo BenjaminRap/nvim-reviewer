@@ -168,6 +168,17 @@ describe("reviewed file", function()
     expect(#vim.api.nvim_buf_get_lines(keybar.buf, 0, -1, false)).equal(1, "one line")
     expect(vim.api.nvim_win_get_config(keybar.win).focusable).falsy("not focusable")
     expect(require("reviewer.review").main_win() ~= keybar.win).truthy("files never open in the bar")
+    -- key_bar hides keys you already know and adds others
+    config.options.key_bar = { hide = { file = { "prev_change", "help" } }, show = { file = { "about" } } }
+    local columns = vim.o.columns
+    vim.o.columns = 200 -- room for the added key
+    keybar.update()
+    text = table.concat(vim.api.nvim_buf_get_lines(keybar.buf, 0, -1, false), " ")
+    expect(text:find("Change:", 1, true)).equal(nil, "a pair is hidden by either name")
+    expect(text:find("Keybindings:", 1, true)).equal(nil, "help hidden")
+    expect(text).contains("About the file:")
+    config.options.key_bar = { hide = {}, show = {} }
+    vim.o.columns = columns
     config.options.key_hints = false
     keybar.update()
     expect(keybar.win).equal(nil, "closed")

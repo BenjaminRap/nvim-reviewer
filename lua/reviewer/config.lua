@@ -55,6 +55,11 @@ M.defaults = {
   show_comments = true, -- Claude's comments above the code
   comments = "inline", -- "inline" (boxes above the code) or "marker" (a ✦ in the sign column; keymaps.file.show_comment opens it)
   key_hints = true, -- a bar at the bottom listing the keys of the current review buffer (like lazygit)
+  -- What the key bar shows, per buffer (file, browser, quiz), by keymap option
+  -- name ("mark_read" is the browser's [x] + :w). hide: leave out keys you
+  -- already know; show: add keys that are only in g? by default.
+  -- Example: hide = { browser = { "open", "parent" } }
+  key_bar = { hide = {}, show = {} },
   show_removed = true, -- removed lines shown in place, in red
   inline_changes = true, -- inside a changed line, the changed words are a little stronger (like GitHub)
   colors = "colorscheme", -- "colorscheme" (diff colours of your colorscheme), "github" (GitHub's colours) or "vivid" (green and red mixed into your background)
