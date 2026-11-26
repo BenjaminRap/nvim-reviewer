@@ -81,22 +81,43 @@ end
 
 -- The columns left of the text (folds, signs, numbers) of the window showing
 -- buf, as chunks for a virtual line drawn from the window's left edge: the "-"
--- sits in the sign column, under the "+" of the added lines. nil when the
--- layout is unknown (custom 'statuscolumn') or there is no room.
+-- sits in the sign column, under the "+" of the added lines. The width comes
+-- from the window's options, not from getwininfo().textoff: with
+-- signcolumn=auto, textoff counts the sign column only after the screen is
+-- redrawn with the new signs. nil when the layout is unknown (custom
+-- 'statuscolumn') or there is no room.
 local function gutter(buf)
   local win = vim.fn.win_findbuf(buf)[1]
-  if not win or vim.wo[win].statuscolumn ~= "" then return nil end
-  local info = vim.fn.getwininfo(win)[1]
-  local textoff = info and info.textoff or 0
-  local fold = tonumber(vim.wo[win].foldcolumn) or 0 -- "auto:N": counted as 0
-  local signw = math.min(2, textoff - fold)
-  if signw < 1 then return nil end
+  if not win then return nil end
+  local wo = vim.wo[win]
+  if wo.statuscolumn ~= "" then return nil end
+  local fold = tonumber(wo.foldcolumn) or 0 -- "auto:N": counted as 0
+  local sc = wo.signcolumn
+  local signw = 0
+  if sc:match("^yes") then
+    signw = 2 * (tonumber(sc:match(":(%d+)")) or 1)
+  elseif sc:match("^auto") then
+    local placed = #vim.api.nvim_buf_get_extmarks(buf, -1, 0, -1, { type = "sign", limit = 1 }) > 0
+      or #((vim.fn.sign_getplaced(buf)[1] or {}).signs or {}) > 0
+    local min = tonumber(sc:match("^auto:(%d+)%-")) or 0 -- "auto:M-N"
+    signw = 2 * math.max(min, placed and 1 or 0)
+  end
+  local numw = 0
+  if wo.number or wo.relativenumber then
+    local n = wo.number and vim.api.nvim_buf_line_count(buf) or vim.api.nvim_win_get_height(win)
+    numw = math.max(wo.numberwidth, #tostring(n) + 1)
+  end
+  if signw + numw == 0 then return nil end
   local chunks = {}
   if fold > 0 then chunks[#chunks + 1] = { string.rep(" ", fold), "FoldColumn" } end
-  chunks[#chunks + 1] = { pad(sym("removed"), signw), "ReviewerDeleteSign" }
-  local rest = textoff - fold - signw
-  if rest > 0 then chunks[#chunks + 1] = { string.rep(" ", rest), "LineNr" } end
-  return chunks, textoff
+  if signw > 0 then
+    chunks[#chunks + 1] = { pad(sym("removed"), signw), "ReviewerDeleteSign" }
+    if numw > 0 then chunks[#chunks + 1] = { string.rep(" ", numw), "LineNr" } end
+  else
+    -- no sign column ("no", "number"): the "-" at the start of the numbers
+    chunks[#chunks + 1] = { pad(sym("removed"), numw), "ReviewerDeleteSign" }
+  end
+  return chunks, fold + signw + numw
 end
 
 -- Virtual-line chunks for a removed line, with its changed ranges stronger.
@@ -268,7 +289,6 @@ function M.draw(buf)
       vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = sym("removed"), sign_hl_group = "ReviewerDeleteSign" })
     end
   else
-    local lead, leadw = gutter(buf)
     for _, h in ipairs(ctx.hunks) do
       if h.new_count > 0 then
         for l = h.new_start, math.min(nlines, h.new_start + h.new_count - 1) do
@@ -287,6 +307,10 @@ function M.draw(buf)
           end
         end
       end
+    end
+    -- after the + signs: with signcolumn=auto, they decide whether there is a sign column
+    local lead, leadw = gutter(buf)
+    for _, h in ipairs(ctx.hunks) do
       if #h.removed > 0 and config.options.show_removed then
         local vl = {}
         local inline = config.options.inline_changes and require("reviewer.diff").add_inline(h)

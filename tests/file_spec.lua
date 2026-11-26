@@ -168,11 +168,15 @@ describe("reviewed file", function()
   end)
 
   it("puts the - of removed lines in the sign column, with the +", function()
+    -- signcolumn=auto: the sign column appears only once the + signs exist,
+    -- so the first draw must not measure the gutter before the screen is redrawn
+    vim.cmd("only")
+    vim.cmd("enew")
+    vim.o.number, vim.o.relativenumber, vim.o.signcolumn = true, true, "auto"
     open("src/app.ts")
     local render = require("reviewer.render")
     local buf = vim.api.nvim_get_current_buf()
-    vim.wo.number, vim.wo.signcolumn = true, "yes"
-    render.draw(buf)
+    vim.cmd("redraw")
     local textoff = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1].textoff
     local found
     for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, render.ns, 0, -1, { details = true })) do
