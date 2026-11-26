@@ -245,7 +245,7 @@ require("reviewer").setup({
   hide_generated = true,
   comment_width = 100,          -- maximum width of a comment box
   browser = {
-    view = "folders",           -- or "reading" (all files in reading order)
+    view = "folders",           -- or "reading" (all files in reading order); then the last view used is kept
     icons = true,               -- mini.icons or nvim-web-devicons, when installed
     show_unchanged = false,     -- also list unchanged files, dimmed (g. toggles)
   },

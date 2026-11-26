@@ -71,7 +71,7 @@ M.defaults = {
   hide_generated = true,
   comment_width = 100, -- maximum width of a comment box
   browser = {
-    view = "folders", -- "folders" (one folder at a time, like oil) or "reading" (all files in reading order)
+    view = "folders", -- first view: "folders" (one folder at a time, like oil) or "reading" (all files in reading order); then the last one used is kept
     icons = true, -- file icons from mini.icons or nvim-web-devicons, when installed
     show_unchanged = false, -- also list files the review does not change, dimmed
   },

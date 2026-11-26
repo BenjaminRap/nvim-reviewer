@@ -440,7 +440,9 @@ comment_width                                *reviewer-option-comment_width*
     Maximum width of a comment box. Default: `100`.
 
 browser                                            *reviewer-option-browser*
-    `view`            `"folders"` or `"reading"`. Default: `"folders"`.
+    `view`            `"folders"` or `"reading"`: the first view. After
+                      that, the browser opens in the last view used, kept
+                      per repository across restarts. Default: `"folders"`.
     `icons`           icons from mini.icons or nvim-web-devicons, when
                     installed. Default: `true`.
     `show_unchanged`  also list unchanged files, dimmed (`g.` toggles).

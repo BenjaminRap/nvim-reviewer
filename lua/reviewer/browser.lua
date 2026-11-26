@@ -13,7 +13,7 @@ local ui = require("reviewer.ui")
 
 local M = {
   bufs = {}, -- buf -> { dir, view, items = { id -> item } }
-  view = nil, -- "folders" or "reading" (last used)
+  view = nil, -- "folders" or "reading" (last used, saved in state.json)
   show_unchanged = nil,
   hide_generated = nil,
 }
@@ -24,7 +24,10 @@ local function opt(name) return (config.options.browser or {})[name] end
 local function K(name) return keys.label(keys.opts("browser")[name]) end
 
 local function init_flags()
-  if M.view == nil then M.view = opt("view") or "folders" end
+  if M.view == nil then
+    local saved = core.project and state.get(core.project).ui.browser_view
+    M.view = (saved == "folders" or saved == "reading") and saved or opt("view") or "folders"
+  end
   if M.show_unchanged == nil then M.show_unchanged = opt("show_unchanged") or false end
   if M.hide_generated == nil then M.hide_generated = config.options.hide_generated end
 end
@@ -446,7 +449,12 @@ function M.open(opts)
   init_flags()
   opts = opts or {}
   local view = opts.view or M.view
-  M.view = view
+  if view ~= M.view then
+    M.view = view
+    -- the browser opens in this view next time, even after a restart
+    state.get(core.project).ui.browser_view = view
+    state.save(core.project)
+  end
   local dir = view ~= "folders" and "" or (opts.dir or "")
   local buf = buffer_for(view, dir)
   M.bufs[buf].focus = opts.focus
@@ -468,12 +476,13 @@ function M.close()
   end
 end
 
--- From a reviewed file: open its folder with the cursor on it.
+-- From a reviewed file: open the browser in its last view, with the cursor
+-- on the file (in the folder view, the file's folder).
 function M.open_here()
   local ctx = require("reviewer.review").current_ctx()
   if not ctx then return M.open({ dir = "" }) end
   local d = vim.fs.dirname(ctx.file.path)
-  M.open({ dir = d == "." and "" or d, view = "folders", focus = "file:" .. ctx.file.path })
+  M.open({ dir = d == "." and "" or d, focus = "file:" .. ctx.file.path })
 end
 
 function M.is_browser(buf) return M.bufs[buf] ~= nil end
