@@ -492,6 +492,12 @@ claude                                              *reviewer-option-claude*
     `batch_files`, `batch_chars`
                     size of one batch of files when preparing.
                     Default: `15` files, `120000` characters.
+    `effort`          effort per use (`overview`, `comments`, `quiz`, `ask`,
+                    `grade`): `"low"`, `"medium"`, `"high"`, `"xhigh"` or
+                    `"max"`, passed as `--effort`. A use left out lets
+                    Claude Code choose. Default: `{}`.
+    `mcp`             `false` passes `--strict-mcp-config`: your MCP servers
+                    and connectors are not loaded. Default: `false`.
     `usage_log`       one JSON line per call (use, models, cost, turns,
                     tokens, prompt size) in `usage.jsonl` of the
                     repository's data folder. Default: `true`.

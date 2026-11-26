@@ -30,6 +30,10 @@ M.defaults = {
     },
     model = nil, -- used for any use without its own model; nil = Claude Code's default
     fallback_model = "sonnet", -- used if the chosen model is busy or not available on your plan
+    -- Effort per use ("low", "medium", "high", "xhigh", "max"), passed as --effort.
+    -- Unset (the default): Claude Code chooses. Example: { comments = "low", overview = "high" }
+    effort = {},
+    mcp = false, -- false: --strict-mcp-config, your MCP servers and connectors are not loaded (the review never uses them)
     -- tools Claude may use; "" means none. Claude runs in the checkout of the
     -- reviewed branch, so read-only tools let it open any file of the repo.
     explain_tools = "Read,Grep,Glob",

@@ -68,4 +68,28 @@ describe("claude", function()
     expect(e.cache_read_tokens).equal(30)
     expect(e.prompt_chars).equal(3)
   end)
+
+  it("passes --effort only for uses given one, and skips MCP servers by default", function()
+    local config = require("reviewer.config")
+    local real_system = vim.system
+    local cmds = {}
+    -- finishes at once (as a failed call), so no call stays counted as running
+    vim.system = function(cmd, _, on_exit)
+      cmds[#cmds + 1] = cmd
+      on_exit({ code = 1, stdout = "", stderr = "stub" })
+      return { kill = function() end }
+    end
+    local effort = config.options.claude.effort
+    config.options.claude.effort = { comments = "low" }
+    claude.run("x", { use = "comments" }, function() end)
+    claude.run("x", { use = "overview" }, function() end)
+    vim.system = real_system
+    config.options.claude.effort = effort
+    vim.wait(100, function() return claude.busy() == 0 end)
+    expect(claude.busy()).equal(0, "no call left running")
+    local a, b = table.concat(cmds[1], " "), table.concat(cmds[2], " ")
+    expect(a).contains("--effort low")
+    expect(b:find("--effort", 1, true) == nil).truthy("no effort: Claude Code chooses")
+    expect(a).contains("--strict-mcp-config")
+  end)
 end)

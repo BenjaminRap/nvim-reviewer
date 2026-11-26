@@ -63,6 +63,9 @@ local function start(job)
     vim.list_extend(cmd, { "--model", model })
     if c.fallback_model and c.fallback_model ~= model then vim.list_extend(cmd, { "--fallback-model", c.fallback_model }) end
   end
+  local effort = job.opts.use and type(c.effort) == "table" and c.effort[job.opts.use] or nil
+  if effort then vim.list_extend(cmd, { "--effort", effort }) end
+  if not c.mcp then cmd[#cmd + 1] = "--strict-mcp-config" end
   vim.list_extend(cmd, c.extra_args or {})
   local ok, obj = pcall(vim.system, cmd, { stdin = job.prompt, cwd = job.opts.cwd, text = true, timeout = c.timeout_ms }, function(res)
     vim.schedule(function()

@@ -221,6 +221,8 @@ require("reviewer").setup({
     batch_files = 15,                 -- files per call when preparing (fewer calls: each pays Claude Code's setup)
     batch_chars = 120000,
     usage_log = true,                 -- one line per call in usage.jsonl (data folder)
+    effort = {},                      -- --effort per use, e.g. { comments = "low", overview = "high" }; unset: Claude Code chooses
+    mcp = false,                      -- false: your MCP servers and connectors are not loaded
     max_parallel = 2,
     timeout_ms = 600000,
   },
