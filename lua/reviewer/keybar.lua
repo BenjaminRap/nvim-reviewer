@@ -15,7 +15,7 @@ local ENTRIES = {
   file = {
     { "file", { "next_change", "prev_change" }, "Change", true },
     { "file", { "next_file", "prev_file" }, "File", true },
-    { "file", "toggle_read", "Read" }, { "file", "read_next", "Read + next", true },
+    { "file", "toggle_read", "Read" }, { "file", "note_done", "Note done" }, { "file", "read_next", "Read + next", true },
     { "file", "show_comment", "Comment", true }, { "file", "note", "Note", true }, { "file", "ask", "Ask Claude", true },
     { "file", "browse", "Files", true },
     { "file", "explain", "Write comments" }, { "file", "comments_style", "Boxes / markers" },
@@ -47,7 +47,8 @@ local LONG = {
     comments_style = "Claude's comments as boxes / as markers (comment key to read one)",
     show_comment = "Claude's comment of the code under the cursor (again: go into it, q to leave)", about = "summary, changes and commits of the file",
     toggle_split = "inline changes / side by side", help = "this help",
-    note = "your note on this line (visual: on the lines); on a note: edit it, empty deletes it",
+    note = "your note on this line (visual: on the lines); on a note: edit it, empty deletes it. Start it with ? for a question, ! for an issue",
+    note_done = "the note under the cursor: done / not done",
   },
 }
 

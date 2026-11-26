@@ -9,7 +9,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Side by side, if you prefer.** `:Review split` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order: Claude's reading path when the overview has one (architecture first, then each flow through the layers, then details and tests), otherwise database → shared → backend → frontend → tests. The next file to read is marked `→ next`, and so are the folders (or the reading-path stage) that hold it, and "mark read and go next" follows the same order. Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
-- **Your own notes** on a line, selected lines or a whole changed block, shown with a `✎` on a line of its own above the code and listed in the quickfix list (`:Review notes`).
+- **Your own notes** on a line, selected lines or a whole changed block, shown with a `✎` on a line of its own above the code and listed in the quickfix list (`:Review notes`). Start a note with `? ` for a question or `! ` for an issue, and mark it done with `<leader>rd`. `:Review answer` has Claude answer all your open questions in one call, and `:Review export` turns your issues and open questions into Markdown to paste into the merge request.
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
 - **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, and the questions you asked.
@@ -96,7 +96,9 @@ There is one command, `:Review`; everything else is a subcommand (`:Review <Tab>
 | `:[range]Review ask` | Ask Claude about the file or the lines |
 | `:Review asks` | Questions you asked, with Claude's answers |
 | `:[range]Review note` | Your note on this line or the lines in range; on a note, edit it (empty deletes it) |
-| `:Review notes` | Every note of the review, in the quickfix list |
+| `:Review notes [open]` | Every note of the review in the quickfix list (`open`: only open questions and issues) |
+| `:Review answer` | Claude answers your open questions, in one call |
+| `:Review export` | Your issues and open questions as Markdown, to paste into the merge request |
 | `:Review[!] prepare [overview\|comments\|quiz\|stop]` | Prepare the review in the background (see below) |
 | `:Review overview` | Overview of the changes: summary, flows, key concepts, things to check, role of each file |
 | `:Review quiz [list\|mistakes]` | Quiz of the current review; `list` to pick another review's quiz; `mistakes` to retry them all |
@@ -271,7 +273,7 @@ require("reviewer").setup({
              toggle_read = "<leader>rr", read_next = "<leader>rn",
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-",
              toggle_split = "<leader>rs", comments_style = "<leader>rc",
-             show_comment = "<leader>rh", note = "<leader>rm", help = "g?" },
+             show_comment = "<leader>rh", note = "<leader>rm", note_done = "<leader>rd", help = "g?" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
                 toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",

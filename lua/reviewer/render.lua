@@ -301,7 +301,12 @@ function M.draw(buf)
   local blines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   for _, n in ipairs(notes.of_file(ctx.file.path, ctx.step)) do
     local a, b = notes.span(ctx, n, blines)
-    above(row(a), sym("note"), "ReviewerNote", n.text, b > a and (" (" .. a .. "-" .. b .. ")") or "", "ReviewerNote")
+    local kind = notes.kind(n)
+    local mark = n.done and "✓" or sym(kind == "note" and "note" or kind)
+    local hl = n.done and "ReviewerDim" or ({ note = "ReviewerNote", question = "ReviewerPartial", issue = "ReviewerBad" })[kind]
+    local extra = (b > a and (" (" .. a .. "-" .. b .. ")") or "")
+      .. (n.answer and ("  · answered: " .. require("reviewer.keys").label(config.options.keymaps.file.show_comment)) or "")
+    above(row(a), mark, hl, n.text, extra, hl)
   end
 
   local split = require("reviewer.split").active()
@@ -449,6 +454,12 @@ function M.hover(buf)
   local win = vim.api.nvim_get_current_win()
   local line = vim.api.nvim_win_get_cursor(win)[1]
   local sp = config.options.show_comments and M.comment_spot(ctx, line) or nil
+  -- Claude's answers to your questions on this line join the comment
+  local answers, a1, a2 = require("reviewer.notes").answers_at(ctx, vim.api.nvim_buf_get_lines(buf, 0, -1, false), line)
+  if #answers > 0 then
+    sp = sp and vim.tbl_extend("force", {}, sp, { texts = vim.list_extend(vim.deepcopy(sp.texts), answers) })
+      or { line = a1, first = a1, last = a2, texts = answers }
+  end
   local key = sp and spot_key(buf, win, sp)
   if key and hover.key == key and hover.win and vim.api.nvim_win_is_valid(hover.win) then return true end
   M.close_hover()
@@ -486,8 +497,7 @@ end
 -- <Esc> there goes back.
 function M.show_comment(buf)
   if not (hover.win and vim.api.nvim_win_is_valid(hover.win)) then
-    if not config.options.show_comments then return ui.notify("Claude's comments are hidden", vim.log.levels.WARN) end
-    if not M.hover(buf) then ui.notify("no comment from Claude on this line") end
+    if not M.hover(buf) then ui.notify("no comment or answer from Claude on this line") end
     return
   end
   local from, w = vim.api.nvim_get_current_win(), hover.win

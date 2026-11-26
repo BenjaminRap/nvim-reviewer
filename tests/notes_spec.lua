@@ -75,7 +75,72 @@ describe("notes", function()
     local qf = vim.fn.getqflist()
     expect(#qf).equal(1)
     expect(qf[1].lnum).equal(3)
-    expect(qf[1].text).equal("check c")
+    expect(qf[1].text).equal("[note] check c")
     vim.cmd("cclose")
+  end)
+
+  it("makes questions and issues from ? and !, and marks them done", function()
+    local notes = require("reviewer.notes")
+    expect({ notes.parse("? why") }).equal({ "question", "why" })
+    expect({ notes.parse("! bug") }).equal({ "issue", "bug" })
+    expect({ notes.parse("!bang") }).equal({ "note", "!bang" }, "a space is needed after the mark")
+    fx.cursor_on("const a = 1")
+    notes.edit_here()
+    type_note("? why 1?")
+    fx.cursor_on("const d = 4")
+    notes.edit_here()
+    type_note("! d is never used")
+    local all = notes.of_file("src/app.ts")
+    local kinds = {}
+    for _, n in ipairs(all) do kinds[n.text] = n.kind end
+    expect(kinds["why 1?"]).equal("question")
+    expect(kinds["d is never used"]).equal("issue")
+    notes.quickfix("open")
+    expect(#vim.fn.getqflist()).equal(2, "the question and the issue, not the plain note")
+    vim.cmd("cclose")
+    fx.cursor_on("const d = 4")
+    notes.toggle_done_here()
+    notes.quickfix("open")
+    expect(#vim.fn.getqflist()).equal(1, "the issue is done")
+    expect(vim.fn.getqflist()[1].text).contains("[question] why 1?")
+    vim.cmd("cclose")
+  end)
+
+  it("answers open questions in one call and shows the answer with the comment key", function()
+    local notes, claude, render = require("reviewer.notes"), require("reviewer.claude"), require("reviewer.render")
+    local real_run, real_select = claude.run, vim.ui.select
+    local prompt
+    vim.ui.select = function(items, _, cb) cb(items[1]) end
+    claude.run = function(p, _, cb)
+      prompt = p
+      local id
+      for _, n in ipairs(notes.of_file("src/app.ts")) do if n.kind == "question" then id = n.id end end
+      cb(nil, { answers = { { id = id, answer = "Because the test expects 1." } } })
+    end
+    notes.answer()
+    vim.wait(200, function() return prompt ~= nil end)
+    claude.run, vim.ui.select = real_run, real_select
+    expect(prompt).contains("why 1?")
+    expect(prompt).contains("const a = 1", "the code around the question")
+    fx.cursor_on("const a = 1")
+    expect(render.hover(vim.api.nvim_get_current_buf())).truthy("float opened")
+    local found
+    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_get_config(w).relative ~= "" then
+        found = table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false), "\n")
+      end
+    end
+    render.close_hover()
+    expect(found).contains("Because the test expects 1.")
+  end)
+
+  it("exports issues and open questions as Markdown", function()
+    local text = require("reviewer.notes").export()
+    vim.cmd("tabclose")
+    expect(text).contains("## Issues")
+    expect(text).contains("- [x] `src/app.ts:4-5`: d is never used")
+    expect(text).contains("## Questions")
+    expect(text).contains("`src/app.ts:1`: why 1?")
+    expect(text:find("check c", 1, true) == nil).truthy("plain notes are left out")
   end)
 end)

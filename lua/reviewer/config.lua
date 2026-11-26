@@ -93,6 +93,7 @@ M.defaults = {
     removed_prefix = "- ", -- before each removed line shown in place
     comment = "✦", pending = "…",
     note = "✎", -- your notes
+    question = "?", issue = "!", -- your notes written "? ..." and "! ..."
     next = "→", -- the next file to read (browser) and the reading path line (files)
   },
   -- Every key can be a string, a list of strings, or false to disable it.
@@ -112,6 +113,7 @@ M.defaults = {
       comments_style = "<leader>rc", -- Claude's comments as boxes or as markers
       show_comment = "<leader>rh", -- Claude's comment of the code under the cursor; again: go into it
       note = "<leader>rm", -- your note on this line (visual: on the lines); on a note: edit it, empty deletes it
+      note_done = "<leader>rd", -- the note under the cursor: done / not done
       help = "g?", -- every key, in a float
     },
     -- in the review browser. Its text is editable (read marks), so defaults

@@ -147,6 +147,14 @@ the code above it moves. |:Review-notes| (`gN` in the browser) puts every
 note of the review in the quickfix list, and the browser shows `✎` after
 files that have notes.
 
+A note written `? ...` is a question (shown with `?`), `! ...` an issue
+(shown with `!`); edit the prefix to change the kind. `<leader>rd` marks the
+note under the cursor done (shown dimmed with `✓`). |:Review-notes| `open`
+lists only the open questions and issues. |:Review-answer| has Claude
+answer every open question in one call; `<leader>rh` on a question's lines
+shows its answer. |:Review-export| puts the issues and open questions in a
+Markdown buffer, to copy into the merge request yourself.
+
 Keys in reviewed files: |reviewer-keys-file|. `↓`/`↑` (or `]c`/`[c`) move between changes,
 `→`/`←` (or `]f`/`[f`) between files in reading order, `-` goes back to the browser on the
 file's folder with the cursor on it.
@@ -316,8 +324,17 @@ Keys: |reviewer-keys-progress|.
     Your note on the cursor line, or on the lines in [range]. On a line that
     has a note, edit it; saving it empty deletes it (|reviewer-notes|).
 
-:Review notes                                                     *:Review-notes*
-    Every note of the review in the quickfix list.
+:Review notes [open]                                              *:Review-notes*
+    Every note of the review in the quickfix list, with its kind. With
+    `open`: only the questions and issues not done.
+
+:Review answer                                                   *:Review-answer*
+    Claude answers your open questions without an answer, in one call
+    (after asking). The plugin sends each question with the code around it.
+
+:Review export                                                   *:Review-export*
+    Your issues (done or not) and open questions as Markdown in a new tab,
+    also copied to the unnamed register. No Claude call.
 
 :Review[!] prepare [overview|comments|quiz|stop]              *:Review-prepare*
     Prepare the review in the background (|reviewer-claude|). With [!],
