@@ -187,6 +187,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `gO` / `gQ` | Overview of the changes / quiz |
 | `gL` | Progress |
 | `gN` | Every note of the review, in the quickfix list |
+| `<C-c>` | Back to the file shown before the browser (like oil's close) |
 | `gB` | Review other branches |
 | `g?` | Help |
 | edit `[ ]` ↔ `[x]`, then `:w` | Save read marks (a folder's box marks everything inside it) |
@@ -270,7 +271,7 @@ require("reviewer").setup({
                 toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
                 explain = "gC", explain_folder = "gF", about = "gK",
                 prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
-                progress = "gL", new_review = "gB", notes = "gN", help = "g?" },
+                progress = "gL", new_review = "gB", notes = "gN", close = "<C-c>", help = "g?" },
     quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
              dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
              overview = "o", refs = { "1", "2", "3", "4" },

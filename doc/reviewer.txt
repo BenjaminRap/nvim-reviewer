@@ -97,7 +97,8 @@ changed files of one folder:
 
 Moving around works like oil: <CR> enters a folder or opens a file in the
 same window, `-` goes to the parent folder, `_` to the root of the review.
-<C-s>, <C-h> and <C-t> open in a split or a tab, <C-p> previews.
+<C-s>, <C-h> and <C-t> open in a split or a tab, <C-p> previews, <C-c> goes
+back to the file the window showed before the browser.
 
                                                       *reviewer-read-marks*
 Read marks are text. Change `[ ]` into `[x]` (or back) with any edit: `rx`,
@@ -531,6 +532,7 @@ In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   `gQ`             quiz                                `quiz`
   `gL`             progress                            `progress`
   `gN`             notes in the quickfix list          `notes`
+  `<C-c>`          back to the previous file           `close`
   `gB`             review other branches               `new_review`
   `g?`             help                                `help`
   edit `[ ]`, then |:w|   save read marks

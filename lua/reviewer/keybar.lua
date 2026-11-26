@@ -28,7 +28,7 @@ local ENTRIES = {
     { "browser", "explain", "Comment file" },
     { "browser", "prepare", "Prepare" }, { "browser", "overview", "Overview" },
     { "browser", "quiz", "Quiz", true }, { "browser", "progress", "Progress" }, { "browser", "notes", "Notes" },
-    { "browser", "new_review", "Other branches" }, { "browser", "help", "Keybindings", true },
+    { "browser", "new_review", "Other branches" }, { "browser", "close", "Back to file" }, { "browser", "help", "Keybindings", true },
   },
   quiz = {
     { "quiz", "choices", "Pick", true }, { "quiz", "check", "Check / next", true }, { "quiz", "answer", "Answer", true },

@@ -119,6 +119,7 @@ M.defaults = {
       about = "gK",
       prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
       progress = "gL", new_review = "gB",
+      close = "<C-c>", -- back to the file shown before the browser (like oil's close)
       notes = "gN", -- every note of the review, in the quickfix list
       help = "g?",
     },

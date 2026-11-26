@@ -335,7 +335,7 @@ local function help_lines()
     { k.overview, "overview of the changes" }, { k.quiz, "quiz" },
     { k.progress, "progress" },
     { k.notes, "every note of the review, in the quickfix list" },
-    { k.new_review, "review other branches" }, { k.help, "this help" },
+    { k.new_review, "review other branches" }, { k.close, "back to the previous file" }, { k.help, "this help" },
   }
   local out = { "Read marks: change [ ] to [" .. sym("read") .. "] (or back) with any edit, then :w.", "A folder's box marks everything inside it. u undoes until you save.", "" }
   for _, r in ipairs(rows) do
@@ -388,6 +388,7 @@ local function setup_buffer(buf)
   map(k.progress, function() require("reviewer.progress").open() end, "progress")
   map(k.notes, function() require("reviewer.notes").quickfix() end, "notes in the quickfix list")
   map(k.new_review, function() require("reviewer").pick_review() end, "review other branches")
+  map(k.close, function() M.close() end, "back to the previous file")
   map(k.help, function() local h = help_lines() ; ui.show("Review browser", h, { width = 80, height = #h + 2 }) end, "help")
 
   vim.api.nvim_create_autocmd("BufWriteCmd", { buffer = buf, callback = function() M.write(buf) end })
@@ -443,8 +444,22 @@ function M.open(opts)
   local dir = view ~= "folders" and "" or (opts.dir or "")
   local buf = buffer_for(view, dir)
   M.bufs[buf].focus = opts.focus
+  -- remember the file this window showed, for the close key
+  local here = vim.api.nvim_get_current_buf()
+  if not M.bufs[here] then vim.w.reviewer_before_browser = here end
   vim.api.nvim_win_set_buf(0, buf)
   M.render_buf(buf, true)
+end
+
+-- Leave the browser: back to the file this window showed before it, like
+-- oil's close.
+function M.close()
+  local prev = vim.w.reviewer_before_browser
+  if prev and vim.api.nvim_buf_is_valid(prev) and not M.bufs[prev] then
+    vim.api.nvim_win_set_buf(0, prev)
+  else
+    ui.notify("no file to go back to")
+  end
 end
 
 -- From a reviewed file: open its folder with the cursor on it.
