@@ -148,21 +148,30 @@ describe("reviewed file", function()
     local core, config, explain, render = require("reviewer.core"), require("reviewer.config"), require("reviewer.explain"), require("reviewer.render")
     local buf = vim.api.nvim_get_current_buf()
     local ctx = core.buffers[buf]
-    local h = ctx.hunks[1]
+    -- a block with removed lines above its added lines: the comment goes on top of the red part
+    local h
+    for _, x in ipairs(ctx.hunks) do if x.above and #x.removed > 0 and x.new_count > 0 then h = x; break end end
+    expect(h ~= nil).truthy("a block with removed and added lines")
     local get = explain.get
-    explain.get = function() return { comments = { { block = h.id, line = h.new_start, text = "What   this does." } } } end
+    explain.get = function() return { comments = { { block = h.id, line = h.anchor, text = "What   this does." } } } end
     config.options.comments = "marker"
     local nlines = vim.api.nvim_buf_line_count(buf)
     render.draw(buf)
     expect(vim.api.nvim_buf_line_count(buf)).equal(nlines, "no real line added")
     local found
-    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, render.ns, h.new_start - 1, h.new_start - 1, { details = true })) do
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, render.ns, h.anchor - 1, h.anchor - 1, { details = true })) do
       local d = m[4]
       expect(d.virt_text_pos ~= "eol").truthy("nothing at the end of the line")
-      if d.virt_lines and d.virt_lines[1][1][2] == "ReviewerCommentTitle" then
-        found = true
-        expect(d.virt_lines_above).truthy("above the code")
-        expect(d.virt_lines[1][2][1]).equal("What this does.")
+      for i, l in ipairs(d.virt_lines or {}) do
+        for j, c in ipairs(l) do
+          if c[2] == "ReviewerCommentTitle" then
+            found = true
+            expect(d.virt_lines_above).truthy("above the code")
+            expect(i).equal(1, "above the removed lines")
+            expect(l[j + 1][1]).equal("What this does.")
+            expect(#d.virt_lines).equal(1 + #h.removed, "the removed lines below it")
+          end
+        end
       end
     end
     expect(found).truthy("the comment's virtual line")
@@ -211,7 +220,8 @@ describe("reviewed file", function()
       if d.virt_lines and d.priority == 10 then
         found = true
         expect(d.virt_lines_leftcol).truthy("drawn from the left edge")
-        local first = d.virt_lines[1]
+        -- the last one is a removed line (comments and notes come before them)
+        local first = d.virt_lines[#d.virt_lines]
         expect(vim.trim(first[1][1])).equal("-", "the sign first")
         local w = 0
         for i = 1, #first - 1 do

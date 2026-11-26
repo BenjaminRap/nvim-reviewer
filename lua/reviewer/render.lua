@@ -178,7 +178,10 @@ function M.draw(buf)
 
   -- One virtual line above a line of code (not a real line: no number, the
   -- cursor skips it), indented like the code and cut to the window's width.
-  -- Returns how many lines it adds above line 1, for the scrolling below.
+  -- Kept per row and placed at the end, on top of the removed lines of that
+  -- row: Neovim does not draw the virtual lines of one row in the order they
+  -- are placed, so they go in the same extmark.
+  local above_lines = {}
   local textw = width
   local win = vim.fn.win_findbuf(buf)[1]
   if win then
@@ -193,10 +196,8 @@ function M.draw(buf)
     local room = math.max(10, textw - vim.fn.strdisplaywidth(head) - vim.fn.strdisplaywidth(suffix))
     local first = text:gsub("%s+", " ")
     if vim.fn.strdisplaywidth(first) > room then first = vim.fn.strcharpart(first, 0, room - 1) .. "…" end
-    vim.api.nvim_buf_set_extmark(buf, M.ns, r, 0, {
-      virt_lines = { { { head, mark_hl }, { first .. suffix, hl } } }, virt_lines_above = true, priority = 30,
-    })
-    return r == 0 and 1 or 0
+    above_lines[r] = above_lines[r] or {}
+    table.insert(above_lines[r], { { head, mark_hl }, { first .. suffix, hl } })
   end
 
   -- Claude's comments first, so they sit above the removed lines of the same block.
@@ -282,7 +283,7 @@ function M.draw(buf)
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(line), 0, {
           sign_text = sym("comment"), sign_hl_group = "ReviewerCommentTitle", priority = 30,
         })
-        top_fill = top_fill + above(row(line), sym("comment"), "ReviewerCommentTitle", texts[1] or "", more, "ReviewerDim")
+        above(row(line), sym("comment"), "ReviewerCommentTitle", texts[1] or "", more, "ReviewerDim")
       end
     end
   end
@@ -295,7 +296,7 @@ function M.draw(buf)
     vim.api.nvim_buf_set_extmark(buf, M.ns, row(a), 0, {
       sign_text = sym("note"), sign_hl_group = "ReviewerNote", priority = 40,
     })
-    top_fill = top_fill + above(row(a), sym("note"), "ReviewerNote", n.text, b > a and (" (" .. a .. "-" .. b .. ")") or "", "ReviewerNote")
+    above(row(a), sym("note"), "ReviewerNote", n.text, b > a and (" (" .. a .. "-" .. b .. ")") or "", "ReviewerNote")
   end
 
   local split = require("reviewer.split").active()
@@ -330,6 +331,14 @@ function M.draw(buf)
     for _, h in ipairs(ctx.hunks) do
       if #h.removed > 0 and config.options.show_removed then
         local vl = {}
+        -- the comments and notes of this row first, shifted past the gutter
+        local r = row(h.anchor)
+        if h.above and above_lines[r] then
+          for _, l in ipairs(above_lines[r]) do
+            vl[#vl + 1] = lead and vim.list_extend({ { string.rep(" ", leadw), "" } }, l) or l
+          end
+          above_lines[r] = nil
+        end
         local inline = config.options.inline_changes and require("reviewer.diff").add_inline(h)
         for i, r in ipairs(h.removed) do
           vl[#vl + 1] = removed_chunks(r, inline and h.inline_removed[i], width, ts, lead, leadw)
@@ -340,6 +349,12 @@ function M.draw(buf)
         })
       end
     end
+  end
+
+  -- comments and notes on rows without removed lines above them
+  for r, vl in pairs(above_lines) do
+    if r == 0 then top_fill = top_fill + #vl end
+    vim.api.nvim_buf_set_extmark(buf, M.ns, r, 0, { virt_lines = vl, virt_lines_above = true, priority = 30 })
   end
 
   -- Hint on the first line when Claude has not commented this file yet.
