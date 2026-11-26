@@ -52,7 +52,7 @@ From anywhere inside a git repository:
 Branch names complete with <Tab>. They are read on the remote: `feature` means
 `origin/feature` when it exists, so you review what was pushed. A name that
 exists only locally is used as is; `refs/heads/feature` forces the local
-branch. |:ReviewFetch| gets the latest commits.
+branch. |:Review-fetch| gets the latest commits.
 
 A review is identified by its two branches, `main..feature`. Read marks,
 Claude's comments, quiz answers and questions are saved per review, so you
@@ -67,7 +67,7 @@ branch, so that your LSP and search work on them:
 - Otherwise, one hidden checkout per repository (a git worktree in
   |reviewer-option-worktree_dir|) is created the first time, then moved to
   the reviewed branch at each new review. It is on no branch, so nothing done
-  there can affect your branches. |:ReviewClean| removes it.
+  there can affect your branches. |:Review-clean| removes it.
 
                                                              *reviewer-deps*
 The hidden checkout has no `node_modules`, so the LSP would miss the types of
@@ -93,7 +93,7 @@ changed files of one folder:
   with `← old name`), lines added and removed, `✦` when Claude commented them.
 - Deleted files are listed too; opening one shows its old content in red.
 - The title bar shows the review, the folder, files read, the quiz score,
-  and the preparation progress while |:ReviewPrepare| runs.
+  and the preparation progress while |:Review-prepare| runs.
 
 Moving around works like oil: <CR> enters a folder or opens a file in the
 same window, `-` goes to the parent folder, `_` to the root of the review.
@@ -111,10 +111,10 @@ ignored, with a message: |:w| only saves read marks, it never touches files.
 `gG` shows or hides generated files (|reviewer-option-generated|).
 
                                                           *reviewer-commits*
-`gl` (or |:ReviewCommits|) lists the branch's commits, oldest first, with
+`gl` (or |:Review-commits|) lists the branch's commits, oldest first, with
 their files and lines changed. <CR> on a commit reviews that commit alone;
 `-` at its root comes back to the list. Changing a commit's box marks all its
-files read, then |:w|. Commit reviews are not listed in |:ReviewProgress|.
+files read, then |:w|. Commit reviews are not listed in |:Review-progress|.
 
 All the keys: |reviewer-keys-browser|. `g?` lists them in the browser.
 
@@ -133,16 +133,16 @@ it was opened (browser, |:edit|, a picker):
 
 The buffer is read-only (|reviewer-option-readonly|): an edit in the hidden
 checkout would be on no branch, and an edit in your own checkout would change
-your working copy. |:ReviewEdit| unlocks the current file if you need to.
+your working copy. |:Review-edit| unlocks the current file if you need to.
 
                                                             *reviewer-split*
-Side by side: |:ReviewSplit| (`<leader>rs`) shows the version before the
+Side by side: |:Review-split| (`<leader>rs`) shows the version before the
 change on the left and the file on the right, in Neovim's diff mode
-(|diff-mode|); the inline overlay is off meanwhile. `]f` moves both sides to
+(|diff-mode|); the inline overlay is off meanwhile. `→` moves both sides to
 the next file. |reviewer-option-layout| makes it the default.
 
-Keys in reviewed files: |reviewer-keys-file|. `]c`/`[c` move between changes,
-`]f`/`[f` between files in reading order, `-` goes back to the browser on the
+Keys in reviewed files: |reviewer-keys-file|. `↓`/`↑` (or `]c`/`[c`) move between changes,
+`→`/`←` (or `]f`/`[f`) between files in reading order, `-` goes back to the browser on the
 file's folder with the cursor on it.
 
 ==============================================================================
@@ -153,30 +153,30 @@ When a review starts, the plugin shows what is already prepared and offers to
 prepare it.
 
 Comments on a file ~
-`<leader>re` in a file, `gC` in the browser, or |:ReviewExplain| writes a
+`<leader>re` in a file, `gC` in the browser, or |:Review-explain| writes a
 summary of the file, what changed, and a comment above each changed block.
 They are saved and tied to the diff they describe; they are written again
-only if the diff changes or on request (|:ReviewExplain|!).
+only if the diff changes or on request (|:Review-explain|!).
 
 Preparing a review ~
-|:ReviewPrepare| prepares the current review in the background:
+|:Review-prepare| prepares the current review in the background:
   1. an overview: summary, main flows, key concepts, things to check
-     carefully, and the role of each file (|:ReviewOverview|, `gO`);
+     carefully, and the role of each file (|:Review-overview|, `gO`);
   2. comments on every file, a few files per call, with the overview as
      context; Claude can open other files of the repo;
   3. a quiz. Each question is checked locally: every `file:line` reference
      must exist on the reviewed branch and every line of a code snippet must
      be in the referenced files. Questions that fail are dropped.
-It can be stopped (`:ReviewPrepare stop`, `gS`) and run again: files already
+It can be stopped (`:Review prepare stop`, `gS`) and run again: files already
 commented for the same diff are skipped. Each stage can run alone:
-`:ReviewPrepare overview`, `comments` or `quiz`. An existing quiz is kept
+`:Review prepare overview`, `comments` or `quiz`. An existing quiz is kept
 unless you add `!`. The cost reported by Claude Code is shown while it runs.
 
 Questions ~
-`<leader>ra` in normal or visual mode, or |:ReviewAsk|, asks Claude about the
+`<leader>ra` in normal or visual mode, or |:Review-ask|, asks Claude about the
 file or the selected lines. Claude runs in the checkout of the reviewed
 branch with read-only tools, so it can open any file of the repo. Answers
-open in a float and are saved: |:ReviewAsks| lists them.
+open in a float and are saved: |:Review-asks| lists them.
 
 What Claude sees ~
   overview      commits, file list, diffs, read access to the repo
@@ -191,9 +191,9 @@ Models: |reviewer-option-claude|.
 ==============================================================================
 6. QUIZZES                                                     *reviewer-quiz*
 
-|:ReviewQuiz| opens the quiz of the current review. If there is none yet, it
-offers to have Claude write it. `:ReviewQuiz list` picks another review's
-quiz, `:ReviewQuiz mistakes` retries every wrong or partly right answer of
+|:Review-quiz| opens the quiz of the current review. If there is none yet, it
+offers to have Claude write it. `:Review quiz list` picks another review's
+quiz, `:Review quiz mistakes` retries every wrong or partly right answer of
 all quizzes.
 
 Questions go from the big picture to single lines, in five levels:
@@ -209,7 +209,7 @@ saved with its history. Keys: |reviewer-keys-quiz|.
 
                                                           *reviewer-quiz-file*
 Quizzes are JSON files `quiz-<base>..<branch>.json` in the repository's quiz
-folder (|reviewer-data|). |:ReviewPrepare| writes them; you can also write
+folder (|reviewer-data|). |:Review-prepare| writes them; you can also write
 them yourself:
 >json
   {
@@ -241,7 +241,7 @@ of a repository, because answers are saved by id.
 ==============================================================================
 7. PROGRESS                                                *reviewer-progress*
 
-|:ReviewProgress| shows every review of the repository with files read and
+|:Review-progress| shows every review of the repository with files read and
 quiz results, your mistakes, and the questions you asked Claude. <CR> on a
 line opens it: a review, a question to answer again, or an answer from Claude.
 Keys: |reviewer-keys-progress|.
@@ -250,70 +250,76 @@ Keys: |reviewer-keys-progress|.
 8. COMMANDS                                                *reviewer-commands*
 
 :Review [{base}] [{branch}]                                           *:Review*
-    Start a review and open the browser (|reviewer-start|).
+    Start a review and open the browser (|reviewer-start|). Every other
+    command is a subcommand of :Review; `:Review <Tab>` lists them and the
+    branch names. A known subcommand wins over a branch of the same name.
 
-:ReviewBrowse [{folder}]                                        *:ReviewBrowse*
+:Review start [{base}] {branch}                                *:Review-start*
+    The same as `:Review [{base}] {branch}`, for a branch named like a
+    subcommand.
+
+:Review browse [{folder}]                                        *:Review-browse*
     Open the browser in the current window, at the root or on {folder}.
 
-:ReviewCommits                                                 *:ReviewCommits*
+:Review commits                                                 *:Review-commits*
     The commits of the branch, to review them one by one (|reviewer-commits|).
 
-:ReviewSplit                                                     *:ReviewSplit*
+:Review split                                                     *:Review-split*
     Switch between inline changes and side by side (|reviewer-split|).
 
-:ReviewNext                                                       *:ReviewNext*
-:ReviewPrev                                                       *:ReviewPrev*
-:ReviewNextUnread                                           *:ReviewNextUnread*
+:Review next                                                       *:Review-next*
+:Review prev                                                       *:Review-prev*
+:Review next-unread                                           *:Review-next-unread*
     Open the next or previous file of the review in reading order, or the
     next unread one.
 
-:ReviewRead                                                       *:ReviewRead*
+:Review read                                                       *:Review-read*
     Toggle the read mark of the current file.
 
-:ReviewReadNext                                               *:ReviewReadNext*
+:Review read-next                                               *:Review-read-next*
     Mark the current file read and open the next unread file.
 
-:ReviewEdit                                                       *:ReviewEdit*
+:Review edit                                                       *:Review-edit*
     Allow changes in the current reviewed file (read-only by default).
 
-:ReviewExplain[!]                                              *:ReviewExplain*
+:Review[!] explain                                              *:Review-explain*
     Write Claude's comments on the current file if it has none. With [!],
     write them again.
 
-:ReviewComments                                               *:ReviewComments*
+:Review comments                                               *:Review-comments*
     Show or hide Claude's comments.
 
-:ReviewKeys                                                       *:ReviewKeys*
+:Review keys                                                       *:Review-keys*
     Show or hide the key bar at the bottom of the screen.
 
-:ReviewAbout                                                     *:ReviewAbout*
+:Review about                                                     *:Review-about*
     Summary, what changed, and commits of the current file.
 
-:[range]ReviewAsk                                                  *:ReviewAsk*
+:[range]Review ask                                                  *:Review-ask*
     Ask Claude about the current file, or about the lines in [range].
 
-:ReviewAsks                                                       *:ReviewAsks*
+:Review asks                                                       *:Review-asks*
     The questions you asked Claude, with the answers.
 
-:ReviewPrepare[!] [overview|comments|quiz|stop]              *:ReviewPrepare*
+:Review[!] prepare [overview|comments|quiz|stop]              *:Review-prepare*
     Prepare the review in the background (|reviewer-claude|). With [!],
     write the overview, comments and quiz again. `stop` stops it.
 
-:ReviewOverview                                               *:ReviewOverview*
+:Review overview                                               *:Review-overview*
     Overview of the changes: summary, flows, key concepts, things to check,
     role of each file.
 
-:ReviewQuiz [list|mistakes]                                       *:ReviewQuiz*
+:Review quiz [list|mistakes]                                       *:Review-quiz*
     Quiz of the current review, another review's quiz (`list`), or every
     mistake to retry (`mistakes`).
 
-:ReviewProgress                                               *:ReviewProgress*
+:Review progress                                               *:Review-progress*
     Every review of the repository and what is remembered.
 
-:ReviewFetch                                                     *:ReviewFetch*
+:Review fetch                                                     *:Review-fetch*
     `git fetch`, then show the latest commits of the reviewed branches.
 
-:ReviewClean                                                     *:ReviewClean*
+:Review clean                                                     *:Review-clean*
     Remove the hidden checkout of the repository. Your progress is kept.
 
 ==============================================================================
@@ -346,7 +352,7 @@ worktree_dir                                  *reviewer-option-worktree_dir*
     Default: `stdpath("cache") .. "/reviewer"`.
 
 readonly                                          *reviewer-option-readonly*
-    Reviewed files cannot be changed (|:ReviewEdit| unlocks one).
+    Reviewed files cannot be changed (|:Review-edit| unlocks one).
     Default: `true`.
 
 layout                                              *reviewer-option-layout*
@@ -364,15 +370,17 @@ show_comments                                *reviewer-option-show_comments*
     Show Claude's comments above the code. Default: `true`.
 
 comments                                          *reviewer-option-comments*
-    `"inline"`: comment boxes above the code. `"hover"`: a marker at the
-    end of the line, and the comment opens in a float while the cursor is
-    in the code it is about (its whole block). `<leader>rc` switches,
-    `<leader>rh` shows a comment in either mode. Default: `"inline"`.
+    `"inline"`: comment boxes above the code. `"marker"`: a marker in the
+    sign column and at the end of the line; `<leader>rh` opens the comment
+    in a float, which closes when the cursor leaves the code it is about
+    (its whole block). `<leader>rc` switches, `<leader>rh` works in either
+    mode. `"hover"` is an older name of `"marker"`. Default: `"inline"`.
 
 key_hints                                        *reviewer-option-key_hints*
-    A bar at the bottom of the screen listing the keys of the current
-    reviewed file, browser or quiz, like lazygit. It is a real window, so
-    it never hides code. |:ReviewKeys| hides or shows it. Default: `true`.
+    A one-line bar at the bottom of the screen with the most used keys of
+    the current reviewed file, browser or quiz, like lazygit; `g?` lists
+    them all. It is a real window, so
+    it never hides code. |:Review-keys| hides or shows it. Default: `true`.
 
 inline_changes                              *reviewer-option-inline_changes*
     Inside a changed line, draw the changed words stronger, like GitHub.
@@ -467,8 +475,8 @@ The browser and quiz defaults leave the keys that move the cursor or search
 alone, so you move in them as in any buffer.
 
 In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
-  `]c` `[c`        next / previous change              `next_change` ...
-  `]f` `[f`        next / previous file                `next_file` ...
+  `↓` `↑` `]c` `[c`  next / previous change              `next_change` ...
+  `→` `←` `]f` `[f`  next / previous file                `next_file` ...
   `<leader>rr`     toggle read                         `toggle_read`
   `<leader>rn`     mark read, open next unread         `read_next`
   `<leader>ra`     ask Claude (normal or visual)       `ask`
@@ -515,7 +523,7 @@ In a quiz (`keymaps.quiz`)                            *reviewer-keys-quiz*
   `o`              results by level                    `overview`
   `1`-`4`            open the code of a reference        `refs`
   `+` `~` `-`          grade yourself                      `self_correct` ...
-  `q` <Esc>        close (|:ReviewQuiz| resumes)         `close`
+  `q` <Esc>        close (|:Review-quiz| resumes)         `close`
 
 In the progress view (`keymaps.progress`)         *reviewer-keys-progress*
   <CR>           open the line                       `open`

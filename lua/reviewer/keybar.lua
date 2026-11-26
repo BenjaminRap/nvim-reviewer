@@ -7,41 +7,43 @@ local keys = require("reviewer.keys")
 local M = { win = nil, buf = nil, kind = nil, hidden = false }
 local ns = vim.api.nvim_create_namespace("reviewer_keybar")
 
--- { section, option name, short label }; a literal key instead of an option name is a string in [ ].
+-- { section, option name, label, in the bar }. A literal key instead of an
+-- option name is a string in [ ]. Only the entries marked true are in the bar
+-- (the most used ones, like lazygit); the help float lists them all.
 local ENTRIES = {
   file = {
-    { "file", "next_change", "next change" }, { "file", "prev_change", "prev change" },
-    { "file", "next_file", "next file" }, { "file", "prev_file", "prev file" },
-    { "file", "toggle_read", "read" }, { "file", "read_next", "read + next" },
-    { "file", "browse", "files" }, { "file", "ask", "ask Claude (or lines)" },
-    { "file", "explain", "write comments" }, { "file", "comments_style", "boxes / markers" },
-    { "file", "show_comment", "comment" },
-    { "file", "about", "about the file" }, { "file", "toggle_split", "side by side" },
-    { "file", "help", "all keys" },
+    { "file", { "next_change", "prev_change" }, "Change", true },
+    { "file", { "next_file", "prev_file" }, "File", true },
+    { "file", "toggle_read", "Read" }, { "file", "read_next", "Read + next", true },
+    { "file", "show_comment", "Comment", true }, { "file", "ask", "Ask Claude", true },
+    { "file", "browse", "Files", true },
+    { "file", "explain", "Write comments" }, { "file", "comments_style", "Boxes / markers" },
+    { "file", "about", "About the file" }, { "file", "toggle_split", "Side by side" },
+    { "file", "help", "Keybindings", true },
   },
   browser = {
-    { "browser", "open", "open" }, { "browser", "parent", "up" }, { "browser", "root", "root" },
-    { "[x] :w", nil, "mark read" }, { "browser", "toggle_view", "reading order" },
-    { "browser", "commits", "commits" }, { "browser", "explain", "comment file" },
-    { "browser", "prepare", "prepare" }, { "browser", "overview", "overview" },
-    { "browser", "quiz", "quiz" }, { "browser", "progress", "progress" },
-    { "browser", "new_review", "other branches" }, { "browser", "help", "all keys" },
+    { "browser", "open", "Open", true }, { "browser", "parent", "Up", true }, { "browser", "root", "Root" },
+    { "[x] :w", nil, "Mark read", true }, { "browser", "toggle_view", "Reading order", true },
+    { "browser", "commits", "Commits" }, { "browser", "explain", "Comment file" },
+    { "browser", "prepare", "Prepare" }, { "browser", "overview", "Overview" },
+    { "browser", "quiz", "Quiz", true }, { "browser", "progress", "Progress" },
+    { "browser", "new_review", "Other branches" }, { "browser", "help", "Keybindings", true },
   },
   quiz = {
-    { "quiz", "choices", "pick" }, { "quiz", "check", "check / next" }, { "quiz", "answer", "answer" },
-    { "quiz", "dont_know", "don't know" }, { "quiz", "next", "next" }, { "quiz", "prev", "previous" },
-    { "quiz", "hint", "hint" }, { "quiz", "explain", "ask why" }, { "quiz", "refs", "open code" },
-    { "quiz", "retry", "retry" }, { "quiz", "overview", "results" }, { "quiz", "close", "close" },
+    { "quiz", "choices", "Pick", true }, { "quiz", "check", "Check / next", true }, { "quiz", "answer", "Answer", true },
+    { "quiz", "dont_know", "Don't know" }, { "quiz", "next", "Next" }, { "quiz", "prev", "Previous" },
+    { "quiz", "hint", "Hint", true }, { "quiz", "explain", "Ask why" }, { "quiz", "refs", "Open code" },
+    { "quiz", "retry", "Retry" }, { "quiz", "overview", "Results" }, { "quiz", "close", "Close", true },
   },
 }
 
 local LONG = {
   file = {
-    next_change = "next change", prev_change = "previous change", next_file = "next file of the review",
-    prev_file = "previous file of the review", toggle_read = "toggle the read mark",
+    next_change = "next / previous change", next_file = "next / previous file of the review",
+    toggle_read = "toggle the read mark",
     read_next = "mark read and open the next unread file", browse = "review browser on this folder",
     ask = "ask Claude about the file (visual: about the lines)", explain = "write Claude's comments on this file",
-    comments_style = "Claude's comments as boxes / as markers shown on hover",
+    comments_style = "Claude's comments as boxes / as markers (comment key to read one)",
     show_comment = "Claude's comment of the code under the cursor (again: go into it, q to leave)", about = "summary, changes and commits of the file",
     toggle_split = "inline changes / side by side", help = "this help",
   },
@@ -49,6 +51,13 @@ local LONG = {
 
 local function label_of(section, name)
   if not name then return section end
+  -- a pair of options (next / previous): their first keys, "↓/↑"
+  if type(name) == "table" then
+    local o = keys.opts(section)
+    local a, b = keys.label(o[name[1]]), keys.label(o[name[2]])
+    if a == "" or b == "" then return a .. b end
+    return a .. "/" .. b
+  end
   local v = keys.opts(section)[name]
   if section == "quiz" and name == "choices" then return (v and v ~= "") and (v:sub(1, 1) .. "-" .. v:sub(-1)) or "" end
   if section == "quiz" and name == "refs" then
@@ -58,11 +67,13 @@ local function label_of(section, name)
   return (keys.labels(v):gsub(" ", "/"))
 end
 
--- "<leader>rr" is long: show the leader itself ("␣rr" for a space).
+-- "<leader>rr" is long: show the leader itself ("␣rr" for a space), and arrows as ↓ ↑ → ←.
+local ARROWS = { ["<down>"] = "↓", ["<up>"] = "↑", ["<right>"] = "→", ["<left>"] = "←" }
 local function short(k)
   local leader = vim.g.mapleader or "\\"
   leader = leader == " " and "␣" or leader
-  return (k:gsub("<[Ll]eader>", function() return leader end))
+  k = k:gsub("<[Ll]eader>", function() return leader end)
+  return (k:gsub("<%a+>", function(m) return ARROWS[m:lower()] end))
 end
 
 -- Kind of review buffer shown in a window, or nil.
@@ -72,26 +83,38 @@ local function kind_of(buf)
   if require("reviewer.quiz").buf == buf then return "quiz" end
 end
 
+-- One line, like lazygit's: "Label: key | Label: key". Entries that do not fit
+-- are dropped from the end, but the help entry is always kept.
 local function chunks(kind, width)
-  local lines, hls, line, col = { "" }, {}, "", 0
+  local items = {}
   for _, e in ipairs(ENTRIES[kind]) do
-    local k = short(label_of(e[1], e[2]))
-    if k ~= "" then
-      local item = " " .. k .. " " .. e[3]
-      local sep = line == "" and "" or "  "
-      if line ~= "" and vim.fn.strdisplaywidth(line .. sep .. item) > width then
-        lines[#lines] = line
-        lines[#lines + 1] = ""
-        line, sep = "", ""
-      end
-      local start = #line + #sep
-      line = line .. sep .. item
-      hls[#hls + 1] = { #lines - 1, start + 1, start + 1 + #k, "ReviewerKey" }
-      hls[#hls + 1] = { #lines - 1, start + 1 + #k, #line, "ReviewerKeyDesc" }
+    if e[4] then
+      local k = short(label_of(e[1], e[2]))
+      if k ~= "" then items[#items + 1] = { label = e[3], key = k } end
     end
   end
-  lines[#lines] = line
-  return lines, hls
+  local sep = " | "
+  local function total(list)
+    local w = 1
+    for i, it in ipairs(list) do
+      w = w + vim.fn.strdisplaywidth(it.label .. ": " .. it.key) + (i > 1 and #sep or 0)
+    end
+    return w
+  end
+  while #items > 1 and total(items) > width do table.remove(items, #items - 1) end
+  local line, hls = " ", {}
+  for i, it in ipairs(items) do
+    if i > 1 then
+      hls[#hls + 1] = { 0, #line, #line + #sep, "ReviewerKeySep" }
+      line = line .. sep
+    end
+    local label = it.label .. ": "
+    hls[#hls + 1] = { 0, #line, #line + #label, "ReviewerKeyDesc" }
+    line = line .. label
+    hls[#hls + 1] = { 0, #line, #line + #it.key, "ReviewerKey" }
+    line = line .. it.key
+  end
+  return { line }, hls
 end
 
 local function close()
@@ -154,10 +177,15 @@ end
 function M.help(kind)
   local out = {}
   for _, e in ipairs(ENTRIES[kind] or {}) do
-    local k = label_of(e[1], e[2])
-    if k ~= "" then out[#out + 1] = ("%-14s %s"):format(k, (LONG[kind] and e[2] and LONG[kind][e[2]]) or e[3]) end
+    local k, name = label_of(e[1], e[2]), e[2]
+    if type(name) == "table" then -- every key of both options
+      local o = keys.opts(e[1])
+      k = vim.trim(keys.labels(o[name[1]]) .. " / " .. keys.labels(o[name[2]]))
+      name = name[1]
+    end
+    if k ~= "" and k ~= "/" then out[#out + 1] = ("%-16s %s"):format(k, (LONG[kind] and name and LONG[kind][name]) or e[3]) end
   end
-  vim.list_extend(out, { "", "Commands: :Review :ReviewBrowse :ReviewQuiz :ReviewProgress :ReviewAsks", ":ReviewKeys shows or hides the key bar." })
+  vim.list_extend(out, { "", "Commands: :Review <Tab> lists them (:Review quiz, :Review progress, :Review asks, ...).", ":Review keys shows or hides the key bar." })
   require("reviewer.ui").show("Keys", out, { width = 80, height = #out + 2 })
 end
 

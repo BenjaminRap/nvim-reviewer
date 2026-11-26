@@ -44,16 +44,13 @@ local function set_keymaps(buf)
   keys.map(buf, { "n", "x" }, km.ask, function() require("reviewer.ask").ask_here() end, "ask Claude")
   keys.map(buf, "n", km.browse, function() require("reviewer.browser").open_here() end, "review browser on this folder")
   keys.map(buf, "n", km.toggle_split, function() require("reviewer.split").toggle() end, "inline changes / side by side")
-  keys.map(buf, "n", km.comments_style, function() M.toggle_comments_style() end, "comments as boxes / hover markers")
+  keys.map(buf, "n", km.comments_style, function() M.toggle_comments_style() end, "comments as boxes / markers")
   keys.map(buf, "n", km.show_comment, function() render.show_comment(buf) end, "Claude's comment here (again: go into it)")
   keys.map(buf, "n", km.help, function() require("reviewer.keybar").help("file") end, "every key")
   local group = vim.api.nvim_create_augroup("reviewer_hover_" .. buf, { clear = true })
-  vim.api.nvim_create_autocmd("CursorMoved", { group = group, buffer = buf, callback = function() render.hover(buf) end })
+  vim.api.nvim_create_autocmd("CursorMoved", { group = group, buffer = buf, callback = function() render.follow(buf) end })
   vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "InsertEnter" }, { group = group, buffer = buf, callback = function() render.close_hover(true) end })
-  vim.api.nvim_create_autocmd("WinScrolled", { group = group, buffer = buf, callback = function()
-    render.close_hover()
-    if vim.api.nvim_get_current_buf() == buf then render.hover(buf) end
-  end })
+  vim.api.nvim_create_autocmd("WinScrolled", { group = group, buffer = buf, callback = function() render.follow(buf) end })
 end
 
 function M.attach(buf, ctx)
@@ -91,7 +88,7 @@ function M.lock(buf, locked)
   vim.bo[buf].readonly = locked
 end
 
--- :ReviewEdit: allow changes in the current reviewed file (until it is closed).
+-- :Review edit: allow changes in the current reviewed file (until it is closed).
 function M.unlock()
   local buf = vim.api.nvim_get_current_buf()
   local ctx = core.buffers[buf]
@@ -172,7 +169,7 @@ function M.move(delta, unread_only)
       return M.open(step, f, nil, here)
     end
   end
-  ui.notify("every file of " .. step.label .. " is read. Time for the quiz: :ReviewQuiz")
+  ui.notify("every file of " .. step.label .. " is read. Time for the quiz: :Review quiz")
 end
 
 function M.toggle_read(ctx)
@@ -227,12 +224,14 @@ function M.toggle_comments()
 end
 
 function M.toggle_comments_style()
-  config.options.comments = config.options.comments == "hover" and "inline" or "hover"
+  config.options.comments = config.options.comments == "marker" and "inline" or "marker"
   config.options.show_comments = true
   render.close_hover()
   render.draw_all()
-  render.hover(vim.api.nvim_get_current_buf())
-  ui.notify("Claude's comments: " .. (config.options.comments == "hover" and "marker, shown when the cursor is in the code it is about" or "boxes above the code"))
+  local key = require("reviewer.keys").label(config.options.keymaps.file.show_comment)
+  ui.notify("Claude's comments: " .. (config.options.comments == "marker"
+    and ("markers; " .. (key ~= "" and key or "the show_comment key") .. " opens the one under the cursor")
+    or "boxes above the code"))
 end
 
 -- About the current file: summary, what changed, commits.
@@ -246,7 +245,7 @@ function M.about()
     vim.list_extend(lines, { "", "## What changed here", "" }); vim.list_extend(lines, ui.wrap(e.changes, config.options.float.text_width or 96))
     lines[#lines + 1] = ""
   else
-    lines[#lines + 1] = explain.status[explain.key(ctx)] == "pending" and "_Claude is writing the comments…_" or "_No comments yet. Run :ReviewExplain._"
+    lines[#lines + 1] = explain.status[explain.key(ctx)] == "pending" and "_Claude is writing the comments…_" or "_No comments yet. Run :Review explain._"
     lines[#lines + 1] = ""
   end
   lines[#lines + 1] = "## Commits touching it"

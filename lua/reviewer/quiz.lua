@@ -371,7 +371,7 @@ function M.open_ref(i)
     pcall(vim.api.nvim_win_set_cursor, 0, { ref.line or 1, 0 })
     vim.cmd("normal! zz")
   end
-  ui.notify("back to the quiz: :ReviewQuiz")
+  ui.notify("back to the quiz: :Review quiz")
 end
 
 function M.ask(kind)
@@ -504,7 +504,7 @@ function M.open_question(quiz_id, qid)
   render()
 end
 
--- :ReviewQuiz [id|N|final|mistakes]
+-- :Review quiz [id|N|final|mistakes]
 function M.open(arg)
   if not core.project then return ui.notify("run :Review first", vim.log.levels.WARN) end
   load()

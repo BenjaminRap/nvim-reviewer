@@ -1,6 +1,26 @@
 local fx = require("tests.fixture")
 
 describe("review", function()
+  it("has one command, with subcommands and branch names to complete", function()
+    fx.review()
+    expect(vim.fn.exists(":Review")).equal(2)
+    expect(vim.fn.exists(":ReviewQuiz")).equal(0, "no other command")
+    local r = require("reviewer")
+    local first = r.complete("", "Review ")
+    expect(vim.tbl_contains(first, "quiz")).truthy("subcommand")
+    expect(vim.tbl_contains(first, "feature")).truthy("branch")
+    expect(r.complete("q", "Review q")).equal({ "quiz" })
+    expect(r.complete("", "Review quiz ")).equal({ "list", "mistakes" })
+    expect(vim.tbl_contains(r.complete("", "Review main "), "feature")).truthy("second branch")
+    -- a subcommand runs; anything else is read as branches
+    local called
+    local orig = r.commands.split
+    r.commands.split = function() called = true end
+    vim.cmd("Review split")
+    r.commands.split = orig
+    expect(called).truthy("subcommand run")
+  end)
+
   it("reads branch names on the remote", function()
     local step = fx.review()
     expect(step.id).equal("main..feature")

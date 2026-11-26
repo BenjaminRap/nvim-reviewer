@@ -16,7 +16,7 @@ function M.setup_highlights()
     ReviewerComment = "DiagnosticVirtualTextInfo", ReviewerCommentTitle = "DiagnosticInfo",
     ReviewerRead = "Comment", ReviewerGroup = "Title", ReviewerHeader = "Title", ReviewerDim = "Comment",
     ReviewerOk = "DiagnosticOk", ReviewerBad = "DiagnosticError", ReviewerPartial = "DiagnosticWarn",
-    ReviewerKey = "Special", ReviewerKeyDesc = "Comment", ReviewerKeyBar = "NormalFloat",
+    ReviewerKey = "Function", ReviewerKeyDesc = "Normal", ReviewerKeySep = "Comment", ReviewerKeyBar = "Normal",
     ReviewerCurrent = "CursorLine", ReviewerFlash = "IncSearch", ReviewerAction = "Function",
   }
   for k, v in pairs(links) do vim.api.nvim_set_hl(0, k, { link = v, default = true }) end
@@ -125,9 +125,14 @@ function M.draw(buf)
     if e and e.comments then
       local by_hunk = {}
       for _, h in ipairs(ctx.hunks) do by_hunk[h.id] = h end
+      -- Claude sometimes writes "b3", "B 3" or "3" for the block "B3"
+      local function block_id(b)
+        b = tostring(b or ""):upper():gsub("%s", "")
+        return b:match("^%d+$") and ("B" .. b) or b
+      end
       local at = {}
       for _, c in ipairs(e.comments) do
-        local h = by_hunk[c.block]
+        local h = by_hunk[block_id(c.block)]
         local pinned = c.line and c.line >= 1 and c.line <= nlines
         local line = pinned and c.line or (h and h.anchor) or nil
         if line then
@@ -154,8 +159,8 @@ function M.draw(buf)
         end
         sp.first, sp.last = math.min(sp.first, a.first), math.max(sp.last, a.last)
         vim.list_extend(sp.texts, a.texts)
-        if config.options.comments == "hover" then
-          -- a marker at the end of the line; the comment opens when the cursor is in its lines
+        if config.options.comments == "marker" then
+          -- a marker in the sign column and at the end of the line; the show_comment key opens it
           local texts = ctx.comment_at[a.line] or {}
           vim.list_extend(texts, a.texts)
           ctx.comment_at[a.line] = texts
@@ -169,9 +174,13 @@ function M.draw(buf)
         local first = (texts[1] or ""):gsub("%s+", " ")
         if vim.fn.strchars(first) > 60 then first = vim.fn.strcharpart(first, 0, 59) .. "…" end
         local more = #texts > 1 and (" (+" .. (#texts - 1) .. ")") or ""
+        -- The sign is always visible; the text at the end of the line is not when
+        -- the line is wider than the window. The sign wins over the "+" of an
+        -- added line when the sign column has room for one sign only.
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(line), 0, {
+          sign_text = sym("comment"), sign_hl_group = "ReviewerCommentTitle",
           virt_text = { { "  " .. sym("comment") .. " ", "ReviewerCommentTitle" }, { first .. more, "ReviewerDim" } },
-          virt_text_pos = "eol", priority = 20,
+          virt_text_pos = "eol", priority = 30,
         })
       end
     end
@@ -222,7 +231,9 @@ function M.draw(buf)
     if ex.status[ex.key(ctx)] == "pending" then hint = sym("comment") .. " Claude is writing comments on this file" .. sym("pending")
     elseif not ex.get(ctx) then
       local key = require("reviewer.keys").label(config.options.keymaps.file.explain)
-      hint = sym("comment") .. " no Claude comments yet" .. ((key and key ~= "") and (": " .. key) or ": :ReviewExplain")
+      key = (key and key ~= "") and key or ":Review explain"
+      if ex.stale(ctx) then hint = "Claude's comments are out of date (the branch moved): " .. key
+      else hint = "no Claude comments yet: " .. key end
     end
     if hint then
       vim.api.nvim_buf_set_extmark(buf, M.ns, 0, 0, { virt_text = { { "  " .. hint, "ReviewerDim" } }, virt_text_pos = "eol", priority = 5 })
@@ -240,9 +251,9 @@ function M.draw(buf)
   end
 end
 
--- Claude's comment of the code under the cursor, in a float (comments = "hover",
--- or on demand with the show_comment key). It stays open while the cursor is
--- anywhere in the commented block.
+-- Claude's comment of the code under the cursor, in a float, opened by the
+-- show_comment key (never on its own). It stays open while the cursor is
+-- anywhere in the commented block, and closes when the cursor leaves it.
 local hover = { win = nil, key = nil, entering = false }
 
 -- The comment about this line: the narrowest one whose lines contain it.
@@ -263,6 +274,16 @@ function M.close_hover(auto)
   hover.win, hover.key = nil, nil
 end
 
+local function spot_key(buf, win, sp) return buf .. ":" .. win .. ":" .. sp.line end
+
+-- Cursor moved in a reviewed file: close the float once the cursor leaves its block.
+function M.follow(buf)
+  if not (hover.win and vim.api.nvim_win_is_valid(hover.win)) then return end
+  local win = vim.api.nvim_get_current_win()
+  local sp = M.comment_spot(require("reviewer.core").buffers[buf], vim.api.nvim_win_get_cursor(win)[1])
+  if not sp or spot_key(buf, win, sp) ~= hover.key then M.close_hover() end
+end
+
 -- Below the block when its last line is on screen and there is room,
 -- otherwise below (or above) the cursor line.
 local function placement(buf, win, sp, line, n)
@@ -275,26 +296,23 @@ local function placement(buf, win, sp, line, n)
     local rows = (e >= s) and (e - s + 1) or 1
     local room = bottom - (s + rows - 1) - 2
     if room >= math.min(n, 3) then
-      return { bufpos = { sp.last - 1, 0 }, row = rows, anchor = "NW", height = math.min(n, room, 20) }, false
+      return { bufpos = { sp.last - 1, 0 }, row = rows, anchor = "NW", height = math.min(n, room, 20) }
     end
   end
   local below = vim.fn.winheight(win) - vim.fn.winline() - 2
   local height = math.min(n, math.max(below, vim.fn.winline() - 3), 20)
   local up = height > below
-  return { bufpos = { line - 1, 0 }, row = up and 0 or 1, anchor = up and "SW" or "NW", height = height }, true
+  return { bufpos = { line - 1, 0 }, row = up and 0 or 1, anchor = up and "SW" or "NW", height = height }
 end
 
--- force: open it even in "inline" mode. Returns true when a float is shown.
-function M.hover(buf, force)
+-- Opens the float of the comment under the cursor. Returns true when one is shown.
+function M.hover(buf)
   local ctx = require("reviewer.core").buffers[buf]
   local win = vim.api.nvim_get_current_win()
   local line = vim.api.nvim_win_get_cursor(win)[1]
-  local sp = config.options.show_comments and (force or config.options.comments == "hover")
-    and M.comment_spot(ctx, line) or nil
-  local key = sp and (buf .. ":" .. win .. ":" .. sp.line)
-  -- a float placed by the cursor follows it; one below the block stays put
-  if key and hover.key and hover.key:find(key, 1, true) == 1 and hover.win and vim.api.nvim_win_is_valid(hover.win)
-    and (hover.key == key or hover.key == key .. ":" .. line) then return true end
+  local sp = config.options.show_comments and M.comment_spot(ctx, line) or nil
+  local key = sp and spot_key(buf, win, sp)
+  if key and hover.key == key and hover.win and vim.api.nvim_win_is_valid(hover.win) then return true end
   M.close_hover()
   if not sp or vim.api.nvim_get_mode().mode:sub(1, 1) ~= "n" then return false end
   local width = math.max(30, math.min(config.options.comment_width or 100, vim.api.nvim_win_get_width(win) - 4))
@@ -308,7 +326,7 @@ function M.hover(buf, force)
   vim.bo[fb].filetype = "markdown"
   vim.bo[fb].bufhidden = "wipe"
   vim.bo[fb].modifiable = false
-  local pos, follows = placement(buf, win, sp, line, #lines)
+  local pos = placement(buf, win, sp, line, #lines)
   local ok, w = pcall(vim.api.nvim_open_win, fb, false, {
     relative = "win", win = win, bufpos = pos.bufpos, row = pos.row, col = 0,
     anchor = pos.anchor, width = width, height = math.max(1, pos.height),
@@ -320,7 +338,7 @@ function M.hover(buf, force)
   vim.wo[w].linebreak = true
   vim.wo[w].conceallevel = 2
   vim.wo[w].winhighlight = "NormalFloat:ReviewerComment,FloatBorder:ReviewerCommentTitle,FloatTitle:ReviewerCommentTitle"
-  hover.win, hover.key = w, follows and (key .. ":" .. line) or key
+  hover.win, hover.key = w, key
   return true
 end
 
@@ -330,7 +348,7 @@ end
 function M.show_comment(buf)
   if not (hover.win and vim.api.nvim_win_is_valid(hover.win)) then
     if not config.options.show_comments then return ui.notify("Claude's comments are hidden", vim.log.levels.WARN) end
-    if not M.hover(buf, true) then ui.notify("no comment from Claude on this line") end
+    if not M.hover(buf) then ui.notify("no comment from Claude on this line") end
     return
   end
   local from, w = vim.api.nvim_get_current_win(), hover.win

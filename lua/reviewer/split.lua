@@ -67,7 +67,7 @@ function M.hide()
   M.tabs[tab] = nil
 end
 
--- :ReviewSplit — switch between the inline overlay and side by side.
+-- :Review split — switch between the inline overlay and side by side.
 function M.toggle()
   M.on = not M.active()
   local review = require("reviewer.review")

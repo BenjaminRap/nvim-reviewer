@@ -1,6 +1,6 @@
 -- Ask Claude about a reviewed file or selected lines. Claude runs in the step's
 -- folder with read-only tools, so it can open any file of the repo at that step.
--- Every question and answer is saved and listed in :ReviewAsks and :ReviewProgress.
+-- Every question and answer is saved and listed in :Review asks and :Review progress.
 local config = require("reviewer.config")
 local core = require("reviewer.core")
 local state = require("reviewer.state")

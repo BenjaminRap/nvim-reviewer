@@ -106,7 +106,7 @@ end
 
 function M._step_dir(project, step, create)
   local head = M.rev(project, step.head_ref)
-  if not head then return nil, "unknown ref " .. step.head_ref .. " (run :ReviewFetch?)" end
+  if not head then return nil, "unknown ref " .. step.head_ref .. " (run :Review fetch?)" end
   if M.rev(project, "HEAD") == head then return project.root end
   local dir = project.worktree
   if vim.uv.fs_stat(dir) then
@@ -114,7 +114,7 @@ function M._step_dir(project, step, create)
     if not create then return nil end
     local dirty = M.run({ "status", "--porcelain" }, dir)
     if dirty and dirty ~= "" then
-      return nil, "the hidden checkout " .. dir .. " has local changes; commit or discard them there, or delete it with :ReviewClean"
+      return nil, "the hidden checkout " .. dir .. " has local changes; commit or discard them there, or delete it with :Review clean"
     end
     local _, err = M.run({ "checkout", "--quiet", "--detach", step.head_ref }, dir)
     if err then return nil, "could not move the hidden checkout: " .. err end

@@ -25,7 +25,7 @@ function M.stale(ctx)
   return e ~= nil and e.hash ~= ctx.hash
 end
 
--- Step overview (written by :ReviewPrepare), if there is one for the current diff.
+-- Step overview (written by :Review prepare), if there is one for the current diff.
 function M.overview(project, step)
   local o = (state.explain(project).steps or {})[step.id]
   if o and o.hash == M.step_hash(project, step) then return o end

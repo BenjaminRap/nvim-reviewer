@@ -1,4 +1,4 @@
--- :ReviewPrepare: prepares a whole step in the background, in three stages:
+-- :Review prepare: prepares a whole step in the background, in three stages:
 --   1. overview  one call that reads the step as a whole (summary, flows, role of each file)
 --   2. comments  Claude's comments on every file, a few files per call, with the overview as context
 --   3. quiz      a quiz on the step, checked locally (refs must exist, code snippets must match)
@@ -285,7 +285,7 @@ local function quiz_exists(id) return vim.uv.fs_stat(core.quiz_file(id)) ~= nil 
 local function run_quiz(job, step, next_stage)
   local qid = step.id
   if quiz_exists(qid) and not job.force_quiz then
-    table.insert(job.notes, "kept the existing quiz (use :ReviewPrepare! quiz to write a new one)")
+    table.insert(job.notes, "kept the existing quiz (use :Review! prepare quiz to write a new one)")
     return next_stage()
   end
   job.stage = "quiz"
@@ -330,7 +330,7 @@ function M.step(step, opts, on_done)
   local job = { tag = tag(key), stage = "starting", done = 0, total = 0, cost = 0, errors = {}, notes = {}, dir = dir,
     force = opts.force and stages.comments, force_quiz = opts.force, paths = opts.paths, on_done = on_done }
   M.jobs[key] = job
-  ui.notify("preparing " .. step.label .. " in the background. :ReviewPrepare stop cancels it.")
+  ui.notify("preparing " .. step.label .. " in the background. :Review prepare stop cancels it.")
   local function done()
     finish(job, ("%s prepared%s"):format(step.label, #job.notes > 0 and (" · " .. table.concat(job.notes, " · ")) or ""))
   end
@@ -345,7 +345,7 @@ function M.step(step, opts, on_done)
   end
 end
 
--- :ReviewPrepare[!] [overview|comments|quiz|stop]
+-- :Review[!] prepare [overview|comments|quiz|stop]
 function M.command(args, bang)
   if not core.project or not core.step then return ui.notify("run :Review first", vim.log.levels.WARN) end
   local arg = args[1]
@@ -357,7 +357,7 @@ function M.command(args, bang)
   end
   local stages
   if arg then
-    if not ({ overview = true, comments = true, quiz = true })[arg] then return ui.notify("use :ReviewPrepare [overview|comments|quiz|stop]", vim.log.levels.WARN) end
+    if not ({ overview = true, comments = true, quiz = true })[arg] then return ui.notify("use :Review prepare [overview|comments|quiz|stop]", vim.log.levels.WARN) end
     stages = { [arg] = true }
   end
   M.step(core.step, { force = bang, stages = stages })
@@ -430,7 +430,7 @@ end
 function M.quiz_or_write(quiz_id, on_ready)
   if quiz_exists(quiz_id) then return on_ready() end
   if quiz_id ~= core.step.id then return ui.notify("no quiz for " .. quiz_id .. " yet", vim.log.levels.WARN) end
-  if not config.options.ai.offer_missing_quiz then return ui.notify("no quiz yet: :ReviewPrepare quiz") end
+  if not config.options.ai.offer_missing_quiz then return ui.notify("no quiz yet: :Review prepare quiz") end
   vim.ui.select({ "Yes, write it now", "No" }, { prompt = ("There is no quiz for %s yet. Have Claude write it?"):format(core.step.label) }, function(c)
     if not (c and c:match("^Yes")) then return end
     vim.schedule(function()
@@ -443,7 +443,7 @@ end
 function M.show_overview(step)
   step = step or core.step
   local o = explain.overview(core.project, step)
-  if not o then return ui.notify("no overview for " .. step.label .. " yet: :ReviewPrepare overview") end
+  if not o then return ui.notify("no overview for " .. step.label .. " yet: :Review prepare overview") end
   local lines = { ("# %s"):format(step.label), "", ("_%s..%s · written %s_"):format(step.base_ref, step.head_ref, ui.fmt_date(o.at)), "" }
   vim.list_extend(lines, ui.wrap(o.summary, config.options.float.text_width or 96))
   if #o.flows > 0 then

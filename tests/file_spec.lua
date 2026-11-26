@@ -26,9 +26,9 @@ describe("reviewed file", function()
     expect(c.removed).equal(2, "removed lines")
   end)
 
-  it("is read-only, and :ReviewEdit unlocks it", function()
+  it("is read-only, and :Review edit unlocks it", function()
     expect(vim.bo.modifiable).falsy("locked")
-    vim.cmd("ReviewEdit")
+    vim.cmd("Review edit")
     expect(vim.bo.modifiable).truthy("unlocked")
   end)
 
@@ -41,12 +41,12 @@ describe("reviewed file", function()
   it("switches to side by side and back", function()
     vim.cmd("only")
     open("src/app.ts")
-    vim.cmd("ReviewSplit")
+    vim.cmd("Review split")
     local wins = vim.api.nvim_tabpage_list_wins(0)
     expect(#wins).equal(2, "windows")
     expect(vim.wo[wins[1]].diff and vim.wo[wins[2]].diff).truthy("diff mode")
     expect(marks().add).equal(0, "inline overlay off")
-    vim.cmd("ReviewSplit")
+    vim.cmd("Review split")
     expect(#vim.api.nvim_tabpage_list_wins(0)).equal(1, "windows")
     expect(marks().add).equal(3, "inline overlay back")
   end)
@@ -58,19 +58,35 @@ describe("reviewed file", function()
     fx.press("]c")
     expect(vim.api.nvim_win_get_cursor(0)[1]).equal(4)
   end)
-  it("shows a comment marker, and the comment when the cursor is on its line", function()
+  it("moves between changes with the arrows too", function()
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    fx.press("<Down>")
+    expect(vim.api.nvim_win_get_cursor(0)[1]).equal(2)
+    fx.press("<Down>")
+    expect(vim.api.nvim_win_get_cursor(0)[1]).equal(4)
+    fx.press("<Up>")
+    expect(vim.api.nvim_win_get_cursor(0)[1]).equal(2)
+  end)
+  it("shows a comment marker, and the comment on demand", function()
     vim.cmd("only")
     open("src/app.ts")
     local core, config, explain = require("reviewer.core"), require("reviewer.config"), require("reviewer.explain")
     local ctx = core.buffers[vim.api.nvim_get_current_buf()]
     local get = explain.get
     explain.get = function() return { comments = { { block = ctx.hunks[1].id, text = "Why this line changed." } } } end
-    config.options.comments = "hover"
+    config.options.comments = "marker"
     require("reviewer.render").draw(vim.api.nvim_get_current_buf())
     expect(marks().comments).equal(0, "no comment boxes")
     local line = ctx.hunks[1].anchor
     expect(ctx.comment_at[line] ~= nil).truthy("marker line")
+    local signs = vim.api.nvim_buf_get_extmarks(0, require("reviewer.render").ns, { line - 1, 0 }, { line - 1, -1 }, { details = true })
+    local has_sign = false
+    for _, m in ipairs(signs) do if vim.trim(m[4].sign_text or "") == "✦" then has_sign = true end end
+    expect(has_sign).truthy("marker in the sign column")
     vim.api.nvim_win_set_cursor(0, { line, 0 })
+    vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })
+    local function nfloats() return #vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_tabpage_list_wins(0)) end
+    expect(nfloats()).equal(0, "never opens on its own")
     require("reviewer.render").hover(vim.api.nvim_get_current_buf())
     local floats = vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_tabpage_list_wins(0))
     expect(#floats).equal(1, "hover float")
@@ -94,7 +110,7 @@ describe("reviewed file", function()
     local function floats()
       return vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_tabpage_list_wins(0))
     end
-    config.options.comments = "hover"
+    config.options.comments = "marker"
     render.draw(buf)
     local last = h.new_start + h.new_count - 1
     vim.api.nvim_win_set_cursor(0, { last, 0 })
@@ -105,8 +121,11 @@ describe("reviewed file", function()
     for l = 1, vim.api.nvim_buf_line_count(buf) do
       if not render.comment_spot(ctx, l) then outside = l; break end
     end
+    vim.api.nvim_win_set_cursor(0, { h.new_start, 0 })
+    render.follow(buf)
+    expect(#floats()).equal(1, "still open in the block")
     vim.api.nvim_win_set_cursor(0, { outside, 0 })
-    render.hover(buf)
+    render.follow(buf)
     expect(#floats()).equal(0, "closed outside the block")
     -- inline mode: the key still shows it, and a second press goes into it
     config.options.comments = "inline"
@@ -130,7 +149,9 @@ describe("reviewed file", function()
     keybar.update()
     expect(keybar.kind).equal("file")
     local text = table.concat(vim.api.nvim_buf_get_lines(keybar.buf, 0, -1, false), " ")
-    expect(text).contains("]c next change")
+    expect(text).contains("Change: ↓/↑")
+    expect(text).contains("File: →/←")
+    expect(#vim.api.nvim_buf_get_lines(keybar.buf, 0, -1, false)).equal(1, "one line")
     expect(vim.api.nvim_win_get_config(keybar.win).focusable).falsy("not focusable")
     expect(require("reviewer.review").main_win() ~= keybar.win).truthy("files never open in the bar")
     config.options.key_hints = false

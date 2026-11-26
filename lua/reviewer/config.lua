@@ -53,7 +53,7 @@ M.defaults = {
     grade_open_answers = true, -- Claude grades open answers; false = you grade yourself
   },
   show_comments = true, -- Claude's comments above the code
-  comments = "inline", -- "inline" (boxes above the code) or "hover" (a ✦ marker; the comment opens when the cursor is in the code it is about)
+  comments = "inline", -- "inline" (boxes above the code) or "marker" (a ✦ in the sign column; keymaps.file.show_comment opens it)
   key_hints = true, -- a bar at the bottom listing the keys of the current review buffer (like lazygit)
   show_removed = true, -- removed lines shown in place, in red
   inline_changes = true, -- inside a changed line, the changed words are a little stronger (like GitHub)
@@ -61,7 +61,7 @@ M.defaults = {
   layout = "inline", -- "inline" (changes drawn in the file) or "split" (before | after, Neovim's diff mode)
   -- Reviewed files cannot be changed: they may be in the hidden checkout (an edit
   -- there is on no branch) or in your own checkout (an edit changes your working
-  -- copy). :ReviewEdit unlocks one buffer.
+  -- copy). :Review edit unlocks one buffer.
   readonly = true,
   hide_generated = true,
   comment_width = 100, -- maximum width of a comment box
@@ -86,8 +86,9 @@ M.defaults = {
   keymaps = {
     -- in reviewed files (buffer-local)
     file = {
-      next_change = "]c", prev_change = "[c",
-      next_file = "]f", prev_file = "[f",
+      -- arrows first (shown in the key bar); the bracket keys work too
+      next_change = { "<Down>", "]c" }, prev_change = { "<Up>", "[c" },
+      next_file = { "<Right>", "]f" }, prev_file = { "<Left>", "[f" },
       toggle_read = "<leader>rr",
       read_next = "<leader>rn", -- mark read and open the next unread file
       ask = "<leader>ra", -- normal or visual mode
@@ -95,7 +96,7 @@ M.defaults = {
       about = "<leader>ri",
       browse = "-", -- open the review browser on the file's folder (like oil's "-")
       toggle_split = "<leader>rs", -- inline changes / side by side
-      comments_style = "<leader>rc", -- Claude's comments as boxes or as hover markers
+      comments_style = "<leader>rc", -- Claude's comments as boxes or as markers
       show_comment = "<leader>rh", -- Claude's comment of the code under the cursor; again: go into it
       help = "g?", -- every key, in a float
     },
@@ -202,6 +203,8 @@ function M.setup(opts)
   if opts.projects then M.options.repos = vim.tbl_extend("force", opts.projects, opts.repos or {}) end
   M.options.worktree_dir = vim.fs.normalize(vim.fn.expand(M.options.worktree_dir))
   if M.options.ai.on_start == "all" then M.options.ai.on_start = "step" end
+  -- older name of "marker" (the comment no longer opens on its own)
+  if M.options.comments == "hover" then M.options.comments = "marker" end
 end
 
 return M

@@ -22,9 +22,9 @@ function M.check()
   if base then
     local r = core.review(repo, base, head)
     if r then h.ok(("last review: %s (%s..%s)"):format(r.label, r.base_ref, r.head_ref))
-    else h.warn(("last review %s → %s: a branch is missing (run :ReviewFetch?)"):format(base, head)) end
+    else h.warn(("last review %s → %s: a branch is missing (run :Review fetch?)"):format(base, head)) end
   end
-  if vim.uv.fs_stat(repo.worktree) then h.info("hidden checkout: " .. repo.worktree .. " (:ReviewClean removes it)")
+  if vim.uv.fs_stat(repo.worktree) then h.info("hidden checkout: " .. repo.worktree .. " (:Review clean removes it)")
   else h.info("no hidden checkout yet (made when the reviewed branch is not the one checked out)") end
   local quizzes = vim.fn.glob(repo.quiz_dir .. "/quiz-*.json", false, true)
   h.info(#quizzes .. " quiz file(s) in " .. repo.quiz_dir)

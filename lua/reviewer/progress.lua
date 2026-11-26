@@ -59,7 +59,7 @@ function M.open()
   add(("## Questions you asked Claude (%d)"):format(#asks))
   add("")
   for i, a in ipairs(asks) do
-    if i > 40 then add("…  (:ReviewAsks lists them all)") break end
+    if i > 40 then add("…  (:Review asks lists them all)") break end
     add(("- %s · %s — %s"):format(ui.fmt_date(a.at), a.title or "", (a.question or ""):gsub("\n", " "):sub(1, 90)), { kind = "ask", ask = a })
   end
 

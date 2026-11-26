@@ -44,8 +44,8 @@ end
 function M.review(repo, base, head)
   if head == nil and base and base:find("%.%.") then base, head = base:match("^(.-)%.%.(.*)$") end
   local base_ref, head_ref = M.resolve(repo, base), M.resolve(repo, head)
-  if not base_ref then return nil, "unknown branch '" .. tostring(base) .. "' (run :ReviewFetch?)" end
-  if not head_ref then return nil, "unknown branch '" .. tostring(head) .. "' (run :ReviewFetch?)" end
+  if not base_ref then return nil, "unknown branch '" .. tostring(base) .. "' (run :Review fetch?)" end
+  if not head_ref then return nil, "unknown branch '" .. tostring(head) .. "' (run :Review fetch?)" end
   local id = base .. ".." .. head
   return { id = id, label = base .. " → " .. head, base_branch = base, branch = head, base_ref = base_ref, head_ref = head_ref }
 end

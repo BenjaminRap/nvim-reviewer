@@ -201,4 +201,71 @@ M.commands = {
   end,
 }
 
+-- :Review {subcommand} ... — the only user command. Without a known
+-- subcommand, the arguments are branches (see M.start).
+-- { name, function(o, args), help, completion of the next argument }
+M.SUBCOMMANDS = {
+  { "start", function(_, a) M.start(a) end, "[base] head: review head compared with base (names that are also subcommands)", "branches" },
+  { "browse", function(_, a) M.commands.browse(a[1] or "") end, "[folder]: open the review browser" },
+  { "commits", function() M.commands.commits() end, "the branch's commits, to review them one by one" },
+  { "split", function() M.commands.split() end, "inline changes / side by side" },
+  { "next", function() M.commands.next() end, "next file of the review" },
+  { "prev", function() M.commands.prev() end, "previous file of the review" },
+  { "next-unread", function() M.commands.next_unread() end, "next unread file" },
+  { "read", function() M.commands.read() end, "toggle the read mark of the current file" },
+  { "read-next", function() M.commands.read_next() end, "mark read and open the next unread file" },
+  { "edit", function() M.commands.edit() end, "allow changes in the current reviewed file" },
+  { "explain", function(o) M.commands.explain(o.bang) end, "Claude's comments on this file (:Review! explain writes them again)" },
+  { "comments", function() M.commands.comments() end, "show or hide Claude's comments" },
+  { "keys", function() M.commands.keys() end, "show or hide the key bar" },
+  { "about", function() M.commands.about() end, "summary and commits of the current file" },
+  { "ask", function(o) M.commands.ask(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, "ask Claude about this file or the selected lines" },
+  { "asks", function() M.commands.asks() end, "questions you asked Claude, with answers" },
+  { "quiz", function(_, a) M.commands.quiz(a[1] or "") end, "[list|mistakes]: quiz of the current review", { "list", "mistakes" } },
+  { "progress", function() M.commands.progress() end, "files read, quiz results, mistakes, questions asked" },
+  { "prepare", function(o, a) M.commands.prepare(a, o.bang) end, "[overview|comments|quiz|stop]: prepare the review in the background", { "overview", "comments", "quiz", "stop" } },
+  { "overview", function() M.commands.overview() end, "overview of the changes of the review" },
+  { "fetch", function() M.commands.fetch() end, "git fetch, then show the latest commits" },
+  { "clean", function() M.commands.clean() end, "remove the hidden checkout of this repository" },
+}
+
+local function find_sub(name)
+  for _, sc in ipairs(M.SUBCOMMANDS) do if sc[1] == name then return sc end end
+end
+
+-- Called by :Review with the command's table (fargs, bang, range, line1, line2).
+function M.command(o)
+  local args = vim.deepcopy(o.fargs or {})
+  local sc = args[1] and find_sub(args[1])
+  if not sc then return M.start(args) end
+  table.remove(args, 1)
+  sc[2](o, args)
+end
+
+local function branch_names()
+  local ok, core = pcall(require, "reviewer.core")
+  local repo = ok and core.repo_here()
+  return repo and M.branches(repo) or {}
+end
+
+function M.complete(lead, line)
+  local words = vim.split(line:gsub("^%S*", ""), "%s+", { trimempty = true })
+  if lead ~= "" then table.remove(words) end -- the word being typed
+  local list
+  if #words == 0 then
+    list = vim.tbl_map(function(sc) return sc[1] end, M.SUBCOMMANDS)
+    vim.list_extend(list, branch_names())
+  else
+    local sc = find_sub(words[1])
+    if sc and #words == 1 then
+      list = sc[4] == "branches" and branch_names() or (type(sc[4]) == "table" and sc[4]) or {}
+    elseif not sc or (sc[1] == "start" and #words == 2) then
+      list = (not sc and #words >= 2) and {} or branch_names()
+    else
+      list = {}
+    end
+  end
+  return vim.tbl_filter(function(x) return x:find(lead, 1, true) == 1 end, list)
+end
+
 return M

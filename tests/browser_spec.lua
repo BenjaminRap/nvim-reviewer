@@ -51,7 +51,7 @@ describe("browser", function()
   end)
 
   it("opens a file in the same window, then - comes back to its folder", function()
-    vim.cmd("ReviewBrowse src")
+    vim.cmd("Review browse src")
     fx.cursor_on("app.ts")
     fx.press("<CR>")
     expect(vim.api.nvim_buf_get_name(0)).contains("src/app.ts")
