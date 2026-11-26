@@ -34,7 +34,7 @@ local function write_json(path, data)
 end
 
 local DEFAULTS = {
-  state = function() return { version = 1, read = {}, attempts = {}, asks = {}, ui = {} } end,
+  state = function() return { version = 1, read = {}, attempts = {}, asks = {}, notes = {}, ui = {} } end,
   explain = function() return { version = 1, files = {}, steps = {} } end,
 }
 

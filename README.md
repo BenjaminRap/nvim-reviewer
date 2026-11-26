@@ -9,6 +9,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Side by side, if you prefer.** `:Review split` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
+- **Your own notes** on a line or selected lines, shown with a `✎` at the end of the line and listed in the quickfix list (`:Review notes`).
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
 - **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, and the questions you asked.
@@ -94,6 +95,8 @@ There is one command, `:Review`; everything else is a subcommand (`:Review <Tab>
 | `:Review about` | Summary, what changed, and commits of the current file |
 | `:[range]Review ask` | Ask Claude about the file or the lines |
 | `:Review asks` | Questions you asked, with Claude's answers |
+| `:[range]Review note` | Your note on this line or the lines in range; on a note, edit it (empty deletes it) |
+| `:Review notes` | Every note of the review, in the quickfix list |
 | `:Review[!] prepare [overview\|comments\|quiz\|stop]` | Prepare the review in the background (see below) |
 | `:Review overview` | Overview of the changes: summary, flows, key concepts, things to check, role of each file |
 | `:Review quiz [list\|mistakes]` | Quiz of the current review; `list` to pick another review's quiz; `mistakes` to retry them all |
@@ -162,6 +165,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<leader>rs` | Inline changes / side by side |
 | `<leader>rc` | Claude's comments as boxes / as markers (`<leader>rh` opens one) |
 | `<leader>rh` | Claude's comment of the code under the cursor; press again to go into it (`q` or `<Esc>` to leave) |
+| `<leader>rm` | Your note on this line (visual: on the selected lines); on a note, edit it; saving it empty deletes it |
 | `g?` | Every key, in a float |
 
 **Key bar.** While you are in a reviewed file, the browser or the quiz, a bar at the bottom of the screen lists their keys, like lazygit. It is a real window, so it never hides code, and focus never stays in it. `key_hints = false` turns it off, `:Review keys` hides or shows it. `key_bar` chooses what it shows, by keymap option name: `hide` leaves out keys you already know (from oil, for example), `show` adds keys that are only in `g?` (see the options below).
@@ -182,6 +186,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `gA` / `gS` | Prepare the review / stop |
 | `gO` / `gQ` | Overview of the changes / quiz |
 | `gL` | Progress |
+| `gN` | Every note of the review, in the quickfix list |
 | `gB` | Review other branches |
 | `g?` | Help |
 | edit `[ ]` ↔ `[x]`, then `:w` | Save read marks (a folder's box marks everything inside it) |
@@ -251,7 +256,7 @@ require("reviewer").setup({
   symbols = {
     read = "x", unread = " ", partly_read = "-",
     added = "+", removed = "-", removed_prefix = "- ",
-    comment = "✦", pending = "…",
+    comment = "✦", pending = "…", note = "✎",
   },
   keymaps = {
     -- a string, a list of strings, or false to disable; only what you set changes
@@ -259,13 +264,13 @@ require("reviewer").setup({
              toggle_read = "<leader>rr", read_next = "<leader>rn",
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-",
              toggle_split = "<leader>rs", comments_style = "<leader>rc",
-             show_comment = "<leader>rh", help = "g?" },
+             show_comment = "<leader>rh", note = "<leader>rm", help = "g?" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
                 toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
                 explain = "gC", explain_folder = "gF", about = "gK",
                 prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
-                progress = "gL", new_review = "gB", help = "g?" },
+                progress = "gL", new_review = "gB", notes = "gN", help = "g?" },
     quiz = { choices = "abcdef", toggle_choice = "<Space>", check = "<CR>", answer = "i",
              dont_know = "d", next = "J", prev = "K", retry = "r", hint = "gh", explain = "x",
              overview = "o", refs = { "1", "2", "3", "4" },
@@ -329,6 +334,7 @@ Every colour comes from a highlight group linked to a standard one, so the plugi
 | `ReviewerComment` / `ReviewerCommentTitle` | `DiagnosticVirtualTextInfo` / `DiagnosticInfo` | Claude's comments |
 | `ReviewerHeader` / `ReviewerGroup` | `Title` | Titles and reading-order groups |
 | `ReviewerRead` / `ReviewerDim` | `Comment` | Read files, secondary text |
+| `ReviewerNote` | `DiagnosticHint` | Your notes |
 | `ReviewerCurrent` | `CursorLine` | The file you are on |
 | `ReviewerOk` / `ReviewerPartial` / `ReviewerBad` | `DiagnosticOk` / `Warn` / `Error` | Results and warnings |
 
@@ -371,7 +377,7 @@ Quizzes are JSON files named `quiz-<base>..<branch>.json` in the repository's `q
 
 `stdpath("data")/reviewer/<project>/`:
 
-- `state.json`: read marks, quiz attempts with their history, questions asked to Claude
+- `state.json`: read marks, your notes, quiz attempts with their history, questions asked to Claude
 - `explain.json`: overviews of each review and Claude's comments per file, tied to the diff they were written for (they are written again if the diff changes)
 - `quizzes/`: the default place for quiz files
 

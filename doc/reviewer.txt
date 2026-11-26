@@ -135,6 +135,16 @@ change on the left and the file on the right, in Neovim's diff mode
 (|diff-mode|); the inline overlay is off meanwhile. `→` moves both sides to
 the next file. |reviewer-option-layout| makes it the default.
 
+                                                            *reviewer-notes*
+Your notes: `<leader>rm` (|:Review-note|) writes a note on the cursor line,
+or on the selected lines in visual mode. The note shows a `✎` in the sign
+column and its text at the end of the line. On a line with a note, the same
+key edits it; saving it empty deletes it. Notes are saved per review, like
+read marks, with the text of their first line, so they follow that line when
+the code above it moves. |:Review-notes| (`gN` in the browser) puts every
+note of the review in the quickfix list, and the browser shows `✎` after
+files that have notes.
+
 Keys in reviewed files: |reviewer-keys-file|. `↓`/`↑` (or `]c`/`[c`) move between changes,
 `→`/`←` (or `]f`/`[f`) between files in reading order, `-` goes back to the browser on the
 file's folder with the cursor on it.
@@ -291,6 +301,13 @@ Keys: |reviewer-keys-progress|.
 
 :Review asks                                                       *:Review-asks*
     The questions you asked Claude, with the answers.
+
+:[range]Review note                                                *:Review-note*
+    Your note on the cursor line, or on the lines in [range]. On a line that
+    has a note, edit it; saving it empty deletes it (|reviewer-notes|).
+
+:Review notes                                                     *:Review-notes*
+    Every note of the review in the quickfix list.
 
 :Review[!] prepare [overview|comments|quiz|stop]              *:Review-prepare*
     Prepare the review in the background (|reviewer-claude|). With [!],
@@ -493,6 +510,7 @@ In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
   `<leader>rs`     inline / side by side               `toggle_split`
   `<leader>rc`     comments as boxes / markers         `comments_style`
   `<leader>rh`     comment here; again: go into it     `show_comment`
+  `<leader>rm`     your note here (visual: the lines)  `note`
   `g?`             every key, in a float               `help`
 
 In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
@@ -512,6 +530,7 @@ In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   `gO`             overview                            `overview`
   `gQ`             quiz                                `quiz`
   `gL`             progress                            `progress`
+  `gN`             notes in the quickfix list          `notes`
   `gB`             review other branches               `new_review`
   `g?`             help                                `help`
   edit `[ ]`, then |:w|   save read marks
@@ -561,6 +580,7 @@ false` stops highlighting the changed words inside a changed line.
                                         DiagnosticInfo)
   ReviewerHeader, ReviewerGroup         titles, reading-order groups (Title)
   ReviewerRead, ReviewerDim             read files, secondary text (Comment)
+  ReviewerNote                          your notes (DiagnosticHint)
   ReviewerCurrent                       the file you are on (CursorLine)
   ReviewerOk, ReviewerPartial,          results and warnings
   ReviewerBad                           (DiagnosticOk, Warn, Error)
@@ -571,8 +591,8 @@ false` stops highlighting the changed words inside a changed line.
 Everything is kept between sessions, per repository, in
 `stdpath("data")/reviewer/<repo>/`:
 
-  `state.json`     read marks, quiz answers with their history, questions
-                 asked to Claude, the last review
+  `state.json`     read marks, your notes, quiz answers with their history,
+                 questions asked to Claude, the last review
   `explain.json`   overviews and Claude's comments per file, tied to the
                  diff they were written for
   `quizzes/`       quiz files (|reviewer-quiz-file|)

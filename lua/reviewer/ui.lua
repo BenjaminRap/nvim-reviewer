@@ -64,6 +64,7 @@ function M.show(title, lines, opts)
 end
 
 -- Multi-line input. <C-s> (normal or insert) or <CR> in normal mode submits; q / <Esc> cancels.
+-- opts.allow_empty: an empty text is submitted too (to delete what it edits).
 function M.input(opts, on_submit)
   local buf, win = M.float({
     title = opts.title, filetype = opts.filetype or "markdown",
@@ -91,7 +92,7 @@ function M.input(opts, on_submit)
     pcall(vim.api.nvim_win_close, win, true)
     vim.cmd("stopinsert")
     local text = vim.trim(table.concat(lines, "\n"))
-    if text ~= "" then on_submit(text) end
+    if text ~= "" or opts.allow_empty then on_submit(text) end
   end
   local function cancel()
     done = true

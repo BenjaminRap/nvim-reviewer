@@ -16,7 +16,7 @@ local ENTRIES = {
     { "file", { "next_change", "prev_change" }, "Change", true },
     { "file", { "next_file", "prev_file" }, "File", true },
     { "file", "toggle_read", "Read" }, { "file", "read_next", "Read + next", true },
-    { "file", "show_comment", "Comment", true }, { "file", "ask", "Ask Claude", true },
+    { "file", "show_comment", "Comment", true }, { "file", "note", "Note", true }, { "file", "ask", "Ask Claude", true },
     { "file", "browse", "Files", true },
     { "file", "explain", "Write comments" }, { "file", "comments_style", "Boxes / markers" },
     { "file", "about", "About the file" }, { "file", "toggle_split", "Side by side" },
@@ -27,7 +27,7 @@ local ENTRIES = {
     { "[x] :w", nil, "Mark read", true }, { "browser", "toggle_view", "Reading order", true },
     { "browser", "explain", "Comment file" },
     { "browser", "prepare", "Prepare" }, { "browser", "overview", "Overview" },
-    { "browser", "quiz", "Quiz", true }, { "browser", "progress", "Progress" },
+    { "browser", "quiz", "Quiz", true }, { "browser", "progress", "Progress" }, { "browser", "notes", "Notes" },
     { "browser", "new_review", "Other branches" }, { "browser", "help", "Keybindings", true },
   },
   quiz = {
@@ -47,6 +47,7 @@ local LONG = {
     comments_style = "Claude's comments as boxes / as markers (comment key to read one)",
     show_comment = "Claude's comment of the code under the cursor (again: go into it, q to leave)", about = "summary, changes and commits of the file",
     toggle_split = "inline changes / side by side", help = "this help",
+    note = "your note on this line (visual: on the lines); on a note: edit it, empty deletes it",
   },
 }
 

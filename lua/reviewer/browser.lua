@@ -199,6 +199,8 @@ function M.render_buf(buf, force)
       end
       if explain.status[core.step.id .. "|" .. f.path] == "pending" then push("  " .. sym("pending"), "ReviewerDim")
       elseif state.explain(core.project).files[core.step.id .. "|" .. f.path] then push("  " .. sym("comment"), "ReviewerCommentTitle") end
+      local nn = require("reviewer.notes").count(f.path)
+      if nn > 0 then push("  " .. sym("note") .. (nn > 1 and nn or ""), "ReviewerNote") end
       if f.generated then push("  generated", "ReviewerDim") end
       if f.path == cur then hls[#hls + 1] = { #prefix, #prefix + #text, "ReviewerCurrent" } end
       e.key = "file:" .. f.path
@@ -332,6 +334,7 @@ local function help_lines()
     { k.prepare, "prepare the review with Claude" }, { k.stop, "stop preparing" },
     { k.overview, "overview of the changes" }, { k.quiz, "quiz" },
     { k.progress, "progress" },
+    { k.notes, "every note of the review, in the quickfix list" },
     { k.new_review, "review other branches" }, { k.help, "this help" },
   }
   local out = { "Read marks: change [ ] to [" .. sym("read") .. "] (or back) with any edit, then :w.", "A folder's box marks everything inside it. u undoes until you save.", "" }
@@ -383,6 +386,7 @@ local function setup_buffer(buf)
   map(k.overview, function() require("reviewer.prepare").overview_then_show(core.step) end, "overview")
   map(k.quiz, function() M.take_quiz(core.step.id) end, "quiz")
   map(k.progress, function() require("reviewer.progress").open() end, "progress")
+  map(k.notes, function() require("reviewer.notes").quickfix() end, "notes in the quickfix list")
   map(k.new_review, function() require("reviewer").pick_review() end, "review other branches")
   map(k.help, function() local h = help_lines() ; ui.show("Review browser", h, { width = 80, height = #h + 2 }) end, "help")
 

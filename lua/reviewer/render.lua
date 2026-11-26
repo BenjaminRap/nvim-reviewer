@@ -17,7 +17,7 @@ function M.setup_highlights()
     ReviewerRead = "Comment", ReviewerGroup = "Title", ReviewerHeader = "Title", ReviewerDim = "Comment",
     ReviewerOk = "DiagnosticOk", ReviewerBad = "DiagnosticError", ReviewerPartial = "DiagnosticWarn",
     ReviewerKey = "Function", ReviewerKeyDesc = "Normal", ReviewerKeySep = "Comment", ReviewerKeyBar = "Normal",
-    ReviewerCurrent = "CursorLine", ReviewerFlash = "IncSearch", ReviewerAction = "Function",
+    ReviewerNote = "DiagnosticHint", ReviewerCurrent = "CursorLine", ReviewerFlash = "IncSearch", ReviewerAction = "Function",
   }
   for k, v in pairs(links) do vim.api.nvim_set_hl(0, k, { link = v, default = true }) end
 
@@ -200,6 +200,20 @@ function M.draw(buf)
         })
       end
     end
+  end
+
+  -- Your notes: a sign on their first line, the note at the end of the line.
+  local notes = require("reviewer.notes")
+  local blines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  for _, n in ipairs(notes.of_file(ctx.file.path, ctx.step)) do
+    local a, b = notes.resolve(n, blines)
+    local first = n.text:gsub("%s+", " ")
+    if vim.fn.strchars(first) > 80 then first = vim.fn.strcharpart(first, 0, 79) .. "…" end
+    vim.api.nvim_buf_set_extmark(buf, M.ns, row(a), 0, {
+      sign_text = sym("note"), sign_hl_group = "ReviewerNote", priority = 40,
+      virt_text = { { "  " .. sym("note") .. " ", "ReviewerNote" }, { first .. (b > a and (" (" .. a .. "-" .. b .. ")") or ""), "ReviewerNote" } },
+      virt_text_pos = "eol",
+    })
   end
 
   local split = require("reviewer.split").active()
