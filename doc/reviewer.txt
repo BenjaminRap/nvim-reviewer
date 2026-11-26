@@ -382,8 +382,7 @@ comments                                          *reviewer-option-comments*
     `"inline"`: comment boxes above the code. `"marker"`: a marker in the
     sign column and the start of the comment on one virtual line above the
     code; `<leader>rh` opens the whole comment
-    in a float, which closes when the cursor leaves the code it is about
-    (its whole block). `<leader>rc` switches, `<leader>rh` works in either
+    in a float, which closes as soon as the cursor moves. `<leader>rc` switches, `<leader>rh` works in either
     mode. `"hover"` is an older name of `"marker"`. Default: `"inline"`.
 
 key_hints                                        *reviewer-option-key_hints*

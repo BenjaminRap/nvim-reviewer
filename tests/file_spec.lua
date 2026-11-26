@@ -96,7 +96,7 @@ describe("reviewed file", function()
     explain.get = get
   end)
 
-  it("keeps the comment open in its whole block, and <leader>rh goes into it", function()
+  it("shows the comment from its whole block, closes it when the cursor moves, and <leader>rh goes into it", function()
     vim.cmd("only")
     open("src/app.ts")
     local core, config, explain = require("reviewer.core"), require("reviewer.config"), require("reviewer.explain")
@@ -116,17 +116,11 @@ describe("reviewed file", function()
     vim.api.nvim_win_set_cursor(0, { last, 0 })
     render.hover(buf)
     expect(#floats()).equal(1, "float on the block's last line")
-    -- a line outside every block has no comment
-    local outside
-    for l = 1, vim.api.nvim_buf_line_count(buf) do
-      if not render.comment_spot(ctx, l) then outside = l; break end
-    end
+    render.follow(buf)
+    expect(#floats()).equal(1, "CursorMoved without a move keeps it")
     vim.api.nvim_win_set_cursor(0, { h.new_start, 0 })
     render.follow(buf)
-    expect(#floats()).equal(1, "still open in the block")
-    vim.api.nvim_win_set_cursor(0, { outside, 0 })
-    render.follow(buf)
-    expect(#floats()).equal(0, "closed outside the block")
+    expect(#floats()).equal(0, "closed by a move, even inside the block")
     -- inline mode: the key still shows it, and a second press goes into it
     config.options.comments = "inline"
     render.draw(buf)

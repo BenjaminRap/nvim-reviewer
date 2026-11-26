@@ -385,9 +385,8 @@ function M.draw(buf)
 end
 
 -- Claude's comment of the code under the cursor, in a float, opened by the
--- show_comment key (never on its own). It stays open while the cursor is
--- anywhere in the commented block, and closes when the cursor leaves it.
-local hover = { win = nil, key = nil, entering = false }
+-- show_comment key (never on its own). It closes as soon as the cursor moves.
+local hover = { win = nil, key = nil, entering = false, pos = nil }
 
 -- The comment about this line: the narrowest one whose lines contain it.
 function M.comment_spot(ctx, line)
@@ -404,17 +403,18 @@ end
 function M.close_hover(auto)
   if auto and hover.entering then return end
   if hover.win and vim.api.nvim_win_is_valid(hover.win) then pcall(vim.api.nvim_win_close, hover.win, true) end
-  hover.win, hover.key = nil, nil
+  hover.win, hover.key, hover.pos = nil, nil, nil
 end
 
 local function spot_key(buf, win, sp) return buf .. ":" .. win .. ":" .. sp.line end
 
--- Cursor moved in a reviewed file: close the float once the cursor leaves its block.
+-- Cursor moved in a reviewed file: close the float. CursorMoved also fires
+-- without a move (after entering a window), so the position is compared.
 function M.follow(buf)
   if not (hover.win and vim.api.nvim_win_is_valid(hover.win)) then return end
   local win = vim.api.nvim_get_current_win()
-  local sp = M.comment_spot(require("reviewer.core").buffers[buf], vim.api.nvim_win_get_cursor(win)[1])
-  if not sp or spot_key(buf, win, sp) ~= hover.key then M.close_hover() end
+  local pos = buf .. ":" .. win .. ":" .. table.concat(vim.api.nvim_win_get_cursor(win), ":")
+  if pos ~= hover.pos then M.close_hover() end
 end
 
 -- Below the block when its last line is on screen and there is room,
@@ -472,6 +472,7 @@ function M.hover(buf)
   vim.wo[w].conceallevel = 2
   vim.wo[w].winhighlight = "NormalFloat:ReviewerComment,FloatBorder:ReviewerCommentTitle,FloatTitle:ReviewerCommentTitle"
   hover.win, hover.key = w, key
+  hover.pos = buf .. ":" .. win .. ":" .. table.concat(vim.api.nvim_win_get_cursor(win), ":")
   return true
 end
 
