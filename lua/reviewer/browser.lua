@@ -100,7 +100,7 @@ end
 local function reading_entries()
   local list, groups, order = {}, {}, {}
   for _, f in ipairs(core.ordered(core.step, { hide_generated = M.hide_generated, order = "reading" })) do
-    local g = core.group_of(f)
+    local g = core.group_of(f, core.step)
     if not groups[g.label] then groups[g.label] = { kind = "group", name = g.label, paths = {}, files = {} } ; order[#order + 1] = g.label end
     table.insert(groups[g.label].paths, f.path)
     table.insert(groups[g.label].files, f)
@@ -144,6 +144,11 @@ function M.render_buf(buf, force)
   if vim.bo[buf].modified and not force then return set_winbar(buf) end
   local entries = info.view == "reading" and reading_entries() or folder_entries(info.dir)
   local cur = core.current and core.current.step.id == core.step.id and core.current.file.path or nil
+  -- the next file to read: the first unread one in reading order
+  local next_path
+  for _, f in ipairs(core.ordered(core.step, { hide_generated = true, order = "reading" })) do
+    if not f.binary and not core.is_read(f.path) then next_path = f.path; break end
+  end
   local lines, marks, items = {}, {}, {}
   -- keep the cursor on the same entry
   local cursor_key
@@ -202,6 +207,7 @@ function M.render_buf(buf, force)
       local nn = require("reviewer.notes").count(f.path)
       if nn > 0 then push("  " .. sym("note") .. (nn > 1 and nn or ""), "ReviewerNote") end
       if f.generated then push("  generated", "ReviewerDim") end
+      if f.path == next_path then push("  " .. sym("next") .. " next", "ReviewerAction") end
       if f.path == cur then hls[#hls + 1] = { #prefix, #prefix + #text, "ReviewerCurrent" } end
       e.key = "file:" .. f.path
     else -- unchanged, shown with show_unchanged

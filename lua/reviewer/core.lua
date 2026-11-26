@@ -104,15 +104,43 @@ function M.files(step)
   return git.changed_files(M.project, step or M.step)
 end
 
--- Reading-order group of a path for this project.
-function M.group_of(file)
-  if file.generated then return { label = "Generated files", order = 99 } end
-  for _, g in ipairs(M.project.groups) do
-    for _, pat in ipairs(g.patterns) do
-      if file.path:find(pat) then return g end
+-- Claude's reading path of a step (written with the overview), or nil:
+-- { stages = { { stage, why, files = { { path, why } } } }, total = n,
+--   pos = { [path] = { n = position in the path, stage = stage index, why = ... } } }
+local path_cache = setmetatable({}, { __mode = "k" })
+function M.reading_path(step)
+  step = step or M.step
+  if not (M.project and step) then return nil end
+  local o = require("reviewer.explain").overview(M.project, step)
+  if not (o and type(o.path) == "table" and #o.path > 0) then return nil end
+  if path_cache[o] then return path_cache[o] end
+  local rp, n = { stages = o.path, pos = {} }, 0
+  for si, st in ipairs(o.path) do
+    for _, pf in ipairs(st.files or {}) do
+      n = n + 1
+      rp.pos[pf.path] = { n = n, stage = si, why = pf.why }
     end
   end
-  return { label = "Other", order = 98 }
+  rp.total = n
+  path_cache[o] = rp
+  return rp
+end
+
+-- Reading-order group of a path for this project: the stage of Claude's
+-- reading path when there is one, otherwise the configured groups (after the
+-- stages, for files the path left out).
+function M.group_of(file, step)
+  if file.generated then return { label = "Generated files", order = 100099 } end
+  local rp = M.reading_path(step)
+  local p = rp and rp.pos[file.path]
+  if p then return { label = ("%d · %s"):format(p.stage, rp.stages[p.stage].stage), order = p.stage } end
+  local base = rp and 100000 or 0
+  for _, g in ipairs(M.project.groups) do
+    for _, pat in ipairs(g.patterns) do
+      if file.path:find(pat) then return { label = g.label, order = base + g.order } end
+    end
+  end
+  return { label = "Other", order = base + 98 }
 end
 
 -- Files of the review in display order, honouring the filters.
@@ -124,9 +152,12 @@ function M.ordered(step, opts)
     if not (opts.hide_generated and f.generated) then files[#files + 1] = f end
   end
   if (opts.order or "reading") == "reading" then
+    local rp = M.reading_path(step)
     table.sort(files, function(a, b)
-      local ga, gb = M.group_of(a), M.group_of(b)
+      local ga, gb = M.group_of(a, step), M.group_of(b, step)
       if ga.order ~= gb.order then return ga.order < gb.order end
+      local pa, pb = rp and rp.pos[a.path], rp and rp.pos[b.path]
+      if pa and pb then return pa.n < pb.n end
       return a.path < b.path
     end)
   else

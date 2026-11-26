@@ -87,6 +87,7 @@ M.defaults = {
     removed_prefix = "- ", -- before each removed line shown in place
     comment = "✦", pending = "…",
     note = "✎", -- your notes
+    next = "→", -- the next file to read (browser) and the reading path line (files)
   },
   -- Every key can be a string, a list of strings, or false to disable it.
   keymaps = {

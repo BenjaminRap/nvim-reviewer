@@ -274,7 +274,12 @@ Keys: |reviewer-keys-progress|.
 :Review prev                                                       *:Review-prev*
 :Review next-unread                                           *:Review-next-unread*
     Open the next or previous file of the review in reading order, or the
-    next unread one.
+    next unread one. The reading order is Claude's reading path when the
+    overview has one (stages: architecture, then each flow, then details and
+    tests), otherwise the groups (|reviewer-option-groups|). The browser marks
+    the next file to read with `→ next`, and a reviewed file shows its stage
+    and what to look at above its first line. `:Review! prepare overview`
+    writes an overview again, for one written before the reading path existed.
 
 :Review read                                                       *:Review-read*
     Toggle the read mark of the current file.
@@ -451,7 +456,8 @@ symbols                                            *reviewer-option-symbols*
     `read` `"x"`, `unread` `" "`, `partly_read` `"-"`: browser checkboxes.
     `added` `"+"`, `removed` `"-"`: signs in reviewed files.
     `removed_prefix` `"- "`: before each removed line shown in place.
-    `comment` `"✦"`, `pending` `"…"`.
+    `comment` `"✦"`, `pending` `"…"`, `note` `"✎"`.
+    `next` `"→"`: the next file to read (browser) and the reading path line.
 
 ai                                                      *reviewer-option-ai*
     When Claude runs:

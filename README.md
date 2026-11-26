@@ -8,7 +8,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **A review prepared in advance.** `:Review prepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
 - **Side by side, if you prefer.** `:Review split` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
 - **Claude's comments** above each change block, written once per file and saved.
-- **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
+- **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order: Claude's reading path when the overview has one (architecture first, then each flow through the layers, then details and tests), otherwise database → shared → backend → frontend → tests. The next file to read is marked `→ next`, and "mark read and go next" follows the same order. Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
 - **Your own notes** on a line, selected lines or a whole changed block, shown with a `✎` on a line of its own above the code and listed in the quickfix list (`:Review notes`).
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
@@ -122,7 +122,7 @@ Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
 `:Review prepare` prepares the current review in the background, in three stages:
 
-1. **Overview.** One call reads the changes as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, and one line per file on its role.
+1. **Overview.** One call reads the changes as a whole: the commits, the file list, the diffs, and any file it wants to open. It writes a summary, the main flows, key concepts, things to check carefully, one line per file on its role, and a reading path: stages (architecture, then each flow, then details and tests), each with its files in order and what to look at in each. A reviewed file shows its stage and what to look at above its first line. An overview written before the reading path existed has none: `:Review! prepare overview` writes it again.
 2. **Comments on every file.** Files are sent a few at a time (`batch_files`, `batch_chars`), together with the overview, so comments can explain how a file fits with the rest. Claude can open and search other files of the repo.
 3. **Quiz.** About 20 to 65 questions depending on the size of the changes. Each question is then checked locally: every `file:line` reference must exist on the reviewed branch, and every line of a code snippet must be found in the referenced files. Questions that fail are dropped, and the result says how many.
 
@@ -257,7 +257,7 @@ require("reviewer").setup({
   symbols = {
     read = "x", unread = " ", partly_read = "-",
     added = "+", removed = "-", removed_prefix = "- ",
-    comment = "✦", pending = "…", note = "✎",
+    comment = "✦", pending = "…", note = "✎", next = "→",
   },
   keymaps = {
     -- a string, a list of strings, or false to disable; only what you set changes

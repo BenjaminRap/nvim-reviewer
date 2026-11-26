@@ -200,6 +200,22 @@ function M.draw(buf)
     table.insert(above_lines[r], { { head, mark_hl }, { first .. suffix, hl } })
   end
 
+  -- Where this file is in Claude's reading path, on a line above line 1.
+  local rp = not require("reviewer.split").active() and core.reading_path(ctx.step) or nil
+  local here = rp and rp.pos[ctx.file.path]
+  if here then
+    local st = rp.stages[here.stage]
+    local head = ("%s %d/%d · %s · file %d/%d"):format(sym("next"), here.stage, #rp.stages, st.stage, here.n, rp.total)
+    above_lines[0] = { { { head, "ReviewerGroup" } } }
+    -- what to look at in this file, on the next line
+    local why = (here.why or ""):gsub("%s+", " ")
+    if why ~= "" then
+      local room = math.max(10, textw - 2)
+      if vim.fn.strdisplaywidth(why) > room then why = vim.fn.strcharpart(why, 0, room - 1) .. "…" end
+      table.insert(above_lines[0], { { "  " .. why, "ReviewerDim" } })
+    end
+  end
+
   -- Claude's comments first, so they sit above the removed lines of the same block.
   ctx.comment_at, ctx.comment_spots = nil, nil
   if config.options.show_comments then

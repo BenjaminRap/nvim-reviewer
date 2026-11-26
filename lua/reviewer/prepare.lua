@@ -88,8 +88,10 @@ local function run_overview(job, step, next_stage)
     ' "flows": [{"name": "short name", "description": "2-4 sentences: the path through the code from start to end, naming the files involved"}],',
     ' "concepts": ["key models, rules or ideas a reviewer must understand"],',
     ' "risks": ["things a reviewer should check carefully, with path:line"],',
-    ' "files": [{"path": "exact path from the list above", "role": "one sentence: what this file does in this step"}]}',
+    ' "files": [{"path": "exact path from the list above", "role": "one sentence: what this file does in this step"}],',
+    ' "path": [{"stage": "short title of a reading stage, for example \"Architecture: data model\" or \"Flow: creating a course\"", "why": "one sentence: what the reader understands after this stage", "files": [{"path": "exact path from the list above", "why": "one sentence: what to look at in this file"}]}]}',
     "Give one entry in \"files\" for every changed file listed above. Only state what the code shows.",
+    "\"path\" is the order in which to read the files, for a reader who discovers the change: first the architecture (data model, shared types, contracts between layers), then each main flow followed through the layers in the order the code runs, then the remaining details, then the tests. Put every changed file listed above in exactly one stage.",
   }, "\n")
   claude.run(prompt, { json = true, tools = config.options.claude.prepare_tools, cwd = job.dir, tag = job.tag, use = "overview" }, function(err, res, meta)
     job.cost = job.cost + (meta and meta.cost or 0)
@@ -106,11 +108,27 @@ local function run_overview(job, step, next_stage)
       if type(fl) == "table" then flows[#flows + 1] = { name = tostring(fl.name or ""), description = tostring(fl.description or "") } end
     end
     local function strings(t) local o = {} for _, x in ipairs(type(t) == "table" and t or {}) do o[#o + 1] = tostring(x) end return o end
+    -- reading path: only files of the step, each once
+    local known, seen, path = {}, {}, {}
+    for _, f in ipairs(files) do known[f.path] = true end
+    for _, st in ipairs(type(res.path) == "table" and res.path or {}) do
+      if type(st) == "table" and type(st.files) == "table" then
+        local stage = { stage = tostring(st.stage or ""), why = tostring(st.why or ""), files = {} }
+        for _, pf in ipairs(st.files) do
+          local fp = type(pf) == "table" and pf.path and tostring(pf.path) or (type(pf) == "string" and pf or nil)
+          if fp and known[fp] and not seen[fp] then
+            seen[fp] = true
+            table.insert(stage.files, { path = fp, why = type(pf) == "table" and tostring(pf.why or "") or "" })
+          end
+        end
+        if #stage.files > 0 then path[#path + 1] = stage end
+      end
+    end
     local ex = state.explain(core.project)
     ex.steps = ex.steps or {}
     ex.steps[step.id] = {
       hash = explain.step_hash(core.project, step), summary = tostring(res.summary), flows = flows,
-      concepts = strings(res.concepts), risks = strings(res.risks), files = roles,
+      concepts = strings(res.concepts), risks = strings(res.risks), files = roles, path = path,
       at = state.now(), cost = meta and meta.cost or 0,
     }
     state.save(core.project, "explain")
@@ -459,6 +477,15 @@ function M.show_overview(step)
   if #o.risks > 0 then
     vim.list_extend(lines, { "", "## To check carefully", "" })
     for _, r in ipairs(o.risks) do vim.list_extend(lines, ui.wrap("- " .. r, config.options.float.text_width or 96)) end
+  end
+  if o.path and #o.path > 0 then
+    vim.list_extend(lines, { "", "## Reading path", "" })
+    for i, st in ipairs(o.path) do
+      vim.list_extend(lines, ui.wrap(("%d. **%s**%s"):format(i, st.stage, st.why ~= "" and (": " .. st.why) or ""), config.options.float.text_width or 96))
+      for _, pf in ipairs(st.files) do
+        vim.list_extend(lines, ui.wrap("   - `" .. pf.path .. "`" .. (pf.why ~= "" and (": " .. pf.why) or ""), config.options.float.text_width or 96))
+      end
+    end
   end
   if #o.files > 0 then
     vim.list_extend(lines, { "", "## Files", "" })
