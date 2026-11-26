@@ -277,25 +277,18 @@ function M.draw(buf)
       end
       for line, texts in pairs(ctx.comment_at) do
         local more = #texts > 1 and (" (+" .. (#texts - 1) .. ")") or ""
-        -- A sign, and the start of the comment on its own virtual line above the
-        -- code. The sign wins over the "+" of an added line when the sign column
-        -- has room for one sign only.
-        vim.api.nvim_buf_set_extmark(buf, M.ns, row(line), 0, {
-          sign_text = sym("comment"), sign_hl_group = "ReviewerCommentTitle", priority = 30,
-        })
+        -- the start of the comment on its own virtual line above the code
         above(row(line), sym("comment"), "ReviewerCommentTitle", texts[1] or "", more, "ReviewerDim")
       end
     end
   end
 
-  -- Your notes: a sign on their first line, the note on its own virtual line above it.
+  -- Your notes, on their own virtual line above their first line (the top of
+  -- the block for a note about a whole block).
   local notes = require("reviewer.notes")
   local blines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   for _, n in ipairs(notes.of_file(ctx.file.path, ctx.step)) do
-    local a, b = notes.resolve(n, blines)
-    vim.api.nvim_buf_set_extmark(buf, M.ns, row(a), 0, {
-      sign_text = sym("note"), sign_hl_group = "ReviewerNote", priority = 40,
-    })
+    local a, b = notes.span(ctx, n, blines)
     above(row(a), sym("note"), "ReviewerNote", n.text, b > a and (" (" .. a .. "-" .. b .. ")") or "", "ReviewerNote")
   end
 

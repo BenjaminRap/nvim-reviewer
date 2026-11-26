@@ -82,7 +82,7 @@ describe("reviewed file", function()
     local signs = vim.api.nvim_buf_get_extmarks(0, require("reviewer.render").ns, { line - 1, 0 }, { line - 1, -1 }, { details = true })
     local has_sign = false
     for _, m in ipairs(signs) do if vim.trim(m[4].sign_text or "") == "✦" then has_sign = true end end
-    expect(has_sign).truthy("marker in the sign column")
+    expect(has_sign).equal(false, "no marker in the sign column (the line above the code is enough)")
     vim.api.nvim_win_set_cursor(0, { line, 0 })
     vim.api.nvim_exec_autocmds("CursorMoved", { buffer = 0 })
     local function nfloats() return #vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_tabpage_list_wins(0)) end

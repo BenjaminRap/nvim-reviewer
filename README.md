@@ -9,7 +9,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Side by side, if you prefer.** `:Review split` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
-- **Your own notes** on a line or selected lines, shown with a `✎` on a line of its own above the code and listed in the quickfix list (`:Review notes`).
+- **Your own notes** on a line, selected lines or a whole changed block, shown with a `✎` on a line of its own above the code and listed in the quickfix list (`:Review notes`).
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
 - **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, and the questions you asked.
@@ -231,7 +231,7 @@ require("reviewer").setup({
     grade_open_answers = true,  -- false: you grade open answers yourself
   },
   show_comments = true,         -- Claude's comments above the code
-  comments = "inline",          -- or "marker": a ✦ in the sign column, <leader>rh opens the comment
+  comments = "inline",          -- or "marker": one line above the code, <leader>rh opens the comment
   key_hints = true,             -- the key bar at the bottom
   key_bar = { hide = {}, show = {} }, -- per buffer: { browser = { "open", "parent" } }
   inline_changes = true,        -- changed words drawn stronger inside a changed line

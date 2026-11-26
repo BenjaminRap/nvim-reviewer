@@ -50,11 +50,31 @@ function M.resolve(n, lines)
   return at, clamp(at + span)
 end
 
+-- The added lines of the changed block holding `line`, or nil.
+local function block_of(ctx, line)
+  for _, h in ipairs(ctx.hunks or {}) do
+    if h.new_count > 0 and line >= h.new_start and line < h.new_start + h.new_count then
+      return h.new_start, h.new_start + h.new_count - 1
+    end
+  end
+end
+
+-- The lines a note is about: its own lines, or, for a note on one line of a
+-- changed block, the whole block (shown at the top of the block).
+function M.span(ctx, n, lines)
+  local a, b = M.resolve(n, lines)
+  if a == b then
+    local s, e = block_of(ctx, a)
+    if s then return s, math.min(e, #lines) end
+  end
+  return a, b
+end
+
 -- The note covering `line` in a buffer, or nil (the narrowest one wins).
 local function note_at(ctx, lines, line)
   local found, size
   for _, n in ipairs(M.of_file(ctx.file.path, ctx.step)) do
-    local a, b = M.resolve(n, lines)
+    local a, b = M.span(ctx, n, lines)
     if line >= a and line <= b and (not size or b - a < size) then found, size = n, b - a end
   end
   return found
@@ -84,7 +104,11 @@ function M.edit_here(l1, l2)
   elseif l1 then sel = true end
   local cur = vim.api.nvim_win_get_cursor(0)[1]
   local existing = not sel and note_at(ctx, lines, cur) or nil
-  if existing then l1, l2 = M.resolve(existing, lines) end
+  if existing then l1, l2 = M.span(ctx, existing, lines) end
+  if not l1 then
+    -- in a changed block, the note is about the whole block
+    l1, l2 = block_of(ctx, cur)
+  end
   l1, l2 = l1 or cur, l2 or l1 or cur
   local where = ("%s:%d%s"):format(ctx.file.path, l1, l2 > l1 and ("-" .. l2) or "")
   ui.input({
