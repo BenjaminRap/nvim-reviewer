@@ -79,15 +79,29 @@ function M.step_context(project, step, max_roles, links_for)
   return table.concat(lines, "\n")
 end
 
--- Header + listing for one file (also used for batches).
+-- Characters of a deleted file sent to Claude: enough to say what it did.
+M.DELETED_CHARS = 4000
+
+-- Header + listing for one file (also used for batches). A deleted file is
+-- not commented block by block: only its start is sent, for a short summary.
 function M.file_section(ctx)
   local f = ctx.file
   local commits = {}
   for _, c in ipairs(git.commits(ctx.project, ctx.step, f.path)) do commits[#commits + 1] = c.subject end
+  local body
+  if ctx.deleted then
+    local old = {}
+    for _, h in ipairs(ctx.hunks) do vim.list_extend(old, h.removed) end
+    body = table.concat(old, "\n")
+    if #body > M.DELETED_CHARS then body = body:sub(1, M.DELETED_CHARS) .. "\n…(rest of the deleted file left out)" end
+    body = "This file is DELETED: give only \"summary\" (what it did) and \"changes\" (why it is gone and what replaces it, if the code shows it), with an empty \"comments\" list. Its old content starts with:\n" .. body
+  else
+    body = diff.listing(ctx.lines, ctx.hunks, 150000)
+  end
   return table.concat({
     ("=== FILE %s (%s%s, +%d −%d)"):format(f.path, STATUS[f.status] or f.status, f.old and (" from " .. f.old) or "", f.add, f.del),
     "Commits touching it: " .. table.concat(commits, " | "):sub(1, 1000),
-    diff.listing(ctx.lines, ctx.hunks, 150000),
+    body,
   }, "\n")
 end
 
@@ -100,6 +114,7 @@ M.COMMENT_RULES = table.concat({
   "- Each comment: 1-4 sentences in plain English saying what the code does, how, and why; point out anything worth double-checking (edge cases, security, error handling). When it helps, say which other file uses this code or is used by it (path:line).",
   "- Use the overview and the cross-file facts above first. Open or search other files only when what you need is not there; do not check again what they already say.",
   "- Only state what the code shows. Never invent behaviour. At most 45 comments per file.",
+  "- A deleted file gets no comments, only its summary and changes.",
 }, "\n")
 
 -- Save Claude's reply for one file.

@@ -92,4 +92,17 @@ describe("claude", function()
     expect(b:find("--effort", 1, true) == nil).truthy("no effort: Claude Code chooses")
     expect(a).contains("--strict-mcp-config")
   end)
+
+  it("asks only a summary for a deleted file, with the start of its old content", function()
+    fx.review()
+    local core, explain, git = require("reviewer.core"), require("reviewer.explain"), require("reviewer.git")
+    local ctx = core.make_ctx(core.step, git.find_file(core.project, core.step, "src/old.ts"))
+    local s = explain.file_section(ctx)
+    expect(s).contains("This file is DELETED")
+    expect(s).contains("export const old = true")
+    local keep = explain.DELETED_CHARS
+    explain.DELETED_CHARS = 5
+    expect(explain.file_section(ctx)).contains("rest of the deleted file left out")
+    explain.DELETED_CHARS = keep
+  end)
 end)
