@@ -110,12 +110,6 @@ ignored, with a message: |:w| only saves read marks, it never touches files.
 (see |reviewer-option-groups|). `g.` also lists unchanged files, dimmed, and
 `gG` shows or hides generated files (|reviewer-option-generated|).
 
-                                                          *reviewer-commits*
-`gl` (or |:Review-commits|) lists the branch's commits, oldest first, with
-their files and lines changed. <CR> on a commit reviews that commit alone;
-`-` at its root comes back to the list. Changing a commit's box marks all its
-files read, then |:w|. Commit reviews are not listed in |:Review-progress|.
-
 All the keys: |reviewer-keys-browser|. `g?` lists them in the browser.
 
 ==============================================================================
@@ -260,9 +254,6 @@ Keys: |reviewer-keys-progress|.
 
 :Review browse [{folder}]                                        *:Review-browse*
     Open the browser in the current window, at the root or on {folder}.
-
-:Review commits                                                 *:Review-commits*
-    The commits of the branch, to review them one by one (|reviewer-commits|).
 
 :Review split                                                     *:Review-split*
     Switch between inline changes and side by side (|reviewer-split|).
@@ -511,7 +502,6 @@ In the browser (`keymaps.browser`)                 *reviewer-keys-browser*
   <C-p>          preview                             `preview`
   `-` `_`          parent folder / root                `parent` `root`
   `gs`             folders / reading order             `toggle_view`
-  `gl`             commits of the branch               `commits`
   `g.`             show unchanged files                `toggle_unchanged`
   `gG`             show generated files                `toggle_generated`
   <C-l>          refresh                             `refresh`

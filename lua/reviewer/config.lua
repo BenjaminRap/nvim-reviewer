@@ -111,7 +111,6 @@ M.defaults = {
       open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
       preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
       toggle_view = "gs", -- folders / all files in reading order
-      commits = "gl", -- the branch's commits, to review them one by one
       toggle_unchanged = "g.", toggle_generated = "gG",
       explain = "gC", -- Claude's comments on the file under the cursor
       explain_folder = "gF", -- comment every file of the folder under the cursor

@@ -7,7 +7,6 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Full file with its changes.** Each file opens as a normal buffer, read-only by default. Added lines are highlighted and removed lines are shown in place, in red. The file itself is never modified.
 - **A review prepared in advance.** `:Review prepare` has Claude read the changes as a whole (overview, main flows, role of each file), comment every file in batches with that overview as context, and write a quiz that is checked locally.
 - **Side by side, if you prefer.** `:Review split` (or `layout = "split"`) shows the version before the change next to the file, in Neovim's own diff mode.
-- **Commit by commit.** `gl` in the browser lists the branch's commits; each one can be reviewed on its own.
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order (database → shared → backend → frontend → tests). Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
 - **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
@@ -85,7 +84,6 @@ There is one command, `:Review`; everything else is a subcommand (`:Review <Tab>
 | `:Review [base] [branch]` | Start a review (see above) and open the browser |
 | `:Review start [base] branch` | The same, for a branch named like a subcommand |
 | `:Review browse [folder]` | Open the browser (optionally on a folder) |
-| `:Review commits` | The branch's commits, to review them one by one |
 | `:Review split` | Switch between inline changes and side by side |
 | `:Review next` / `:Review prev` / `:Review next-unread` | Move between the files of the review |
 | `:Review edit` | Allow changes in the current reviewed file (read-only by default) |
@@ -177,7 +175,6 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `<C-p>` | Preview, staying in the browser |
 | `-` / `_` | Parent folder / root of the review |
 | `gs` | One folder at a time / all files in reading order |
-| `gl` | The branch's commits (`<CR>` reviews one, `-` comes back) |
 | `g.` / `gG` | Show or hide unchanged files / generated files |
 | `<C-l>` | Refresh |
 | `gC` / `gF` | Claude's comments on the file / on every file of the folder |
@@ -265,7 +262,7 @@ require("reviewer").setup({
              show_comment = "<leader>rh", help = "g?" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
-                toggle_view = "gs", commits = "gl", toggle_unchanged = "g.", toggle_generated = "gG",
+                toggle_view = "gs", toggle_unchanged = "g.", toggle_generated = "gG",
                 explain = "gC", explain_folder = "gF", about = "gK",
                 prepare = "gA", stop = "gS", overview = "gO", quiz = "gQ",
                 progress = "gL", new_review = "gB", help = "g?" },
@@ -380,7 +377,7 @@ Quizzes are JSON files named `quiz-<base>..<branch>.json` in the repository's `q
 
 ## Development
 
-`make test` (or `tests/run.sh`) runs the tests headless. They build a small git repository with a fake remote and check the plugin against it: branches and statuses, the hidden checkout, the browser and its read marks, the overlay, side by side, commits, quizzes and saved data. Claude is replaced by a fake, so the tests use no Claude usage. `SPEC=browser tests/run.sh` runs one file.
+`make test` (or `tests/run.sh`) runs the tests headless. They build a small git repository with a fake remote and check the plugin against it: branches and statuses, the hidden checkout, the browser and its read marks, the overlay, side by side, quizzes and saved data. Claude is replaced by a fake, so the tests use no Claude usage. `SPEC=browser tests/run.sh` runs one file.
 
 ## License
 

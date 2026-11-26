@@ -60,16 +60,13 @@ local function open_review()
     if vim.api.nvim_buf_is_loaded(buf) then require("reviewer.review").attach(buf) end
   end
   require("reviewer.core").changed()
-  if not require("reviewer.core").step.parent then
-    vim.schedule(function() require("reviewer.prepare").offer_on_start() end)
-  end
+  vim.schedule(function() require("reviewer.prepare").offer_on_start() end)
 end
 
 -- Start a review from two branch names, or from an id "base..head".
--- opts: { label, parent } for the review of one commit of a branch.
-function M.start_review(base, head, opts)
+function M.start_review(base, head)
   ensure_setup()
-  if not require("reviewer.core").start(base, head, opts) then return nil end
+  if not require("reviewer.core").start(base, head) then return nil end
   open_review()
   return require("reviewer.core").step
 end
@@ -150,7 +147,6 @@ local need_project = need_review
 M.commands = {
   browse = function(dir) if need_project() then require("reviewer.browser").open({ dir = dir ~= "" and dir or nil }) end end,
   split = function() if need_project() then require("reviewer.split").toggle() end end,
-  commits = function() if need_project() then require("reviewer.browser").commits() end end,
   next = function() if need_project() then require("reviewer.review").move(1) end end,
   prev = function() if need_project() then require("reviewer.review").move(-1) end end,
   next_unread = function() if need_project() then require("reviewer.review").move(1, true) end end,
@@ -207,7 +203,6 @@ M.commands = {
 M.SUBCOMMANDS = {
   { "start", function(_, a) M.start(a) end, "[base] head: review head compared with base (names that are also subcommands)", "branches" },
   { "browse", function(_, a) M.commands.browse(a[1] or "") end, "[folder]: open the review browser" },
-  { "commits", function() M.commands.commits() end, "the branch's commits, to review them one by one" },
   { "split", function() M.commands.split() end, "inline changes / side by side" },
   { "next", function() M.commands.next() end, "next file of the review" },
   { "prev", function() M.commands.prev() end, "previous file of the review" },

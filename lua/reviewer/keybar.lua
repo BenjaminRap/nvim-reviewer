@@ -25,7 +25,7 @@ local ENTRIES = {
   browser = {
     { "browser", "open", "Open", true }, { "browser", "parent", "Up", true }, { "browser", "root", "Root" },
     { "[x] :w", nil, "Mark read", true }, { "browser", "toggle_view", "Reading order", true },
-    { "browser", "commits", "Commits" }, { "browser", "explain", "Comment file" },
+    { "browser", "explain", "Comment file" },
     { "browser", "prepare", "Prepare" }, { "browser", "overview", "Overview" },
     { "browser", "quiz", "Quiz", true }, { "browser", "progress", "Progress" },
     { "browser", "new_review", "Other branches" }, { "browser", "help", "Keybindings", true },
