@@ -183,6 +183,8 @@ function M.render_buf(buf, force)
         push(e.name, "ReviewerGroup")
       end
       push(("  %d/%d"):format(done, #e.paths), "ReviewerDim")
+      -- the folder (or group) holding the next file to read
+      if next_path and vim.tbl_contains(e.paths, next_path) then push("  " .. sym("next") .. " next", "ReviewerAction") end
       if done == #e.paths then hls[#hls + 1] = { #prefix, #prefix + #text, "ReviewerRead" } end
       e.key = e.kind .. ":" .. (e.path or e.name)
     elseif e.kind == "file" then

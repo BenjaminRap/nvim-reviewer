@@ -40,6 +40,10 @@ describe("reading path", function()
     require("reviewer.state").set_read(core.project, core.step.id, { "src/new.ts" }, true)
     require("reviewer.browser").render()
     expect(fx.shown()[fx.cursor_on("next")]).contains("app.ts")
+    -- at the root, the folder holding it is marked too
+    vim.cmd("Review browse")
+    require("reviewer.browser").render()
+    expect(fx.shown()[fx.cursor_on("next")]).contains("src/")
     teardown()
   end)
 

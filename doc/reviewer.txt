@@ -277,7 +277,7 @@ Keys: |reviewer-keys-progress|.
     next unread one. The reading order is Claude's reading path when the
     overview has one (stages: architecture, then each flow, then details and
     tests), otherwise the groups (|reviewer-option-groups|). The browser marks
-    the next file to read with `→ next`, and a reviewed file shows its stage
+    the next file to read with `→ next`, and the folders or stage holding it, and a reviewed file shows its stage
     and what to look at above its first line. `:Review! prepare overview`
     writes an overview again, for one written before the reading path existed.
 
