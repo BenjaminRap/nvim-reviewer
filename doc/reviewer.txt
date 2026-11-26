@@ -514,8 +514,13 @@ claude                                              *reviewer-option-claude*
                     Default: `"Read,Grep,Glob"`.
     `grade_tools`     Default: `""`.
     `batch_files`, `batch_chars`
-                    size of one batch of files when preparing.
-                    Default: `15` files, `120000` characters.
+                    size of one batch of files when preparing. Larger
+                    batches cost a little less but get thinner comments
+                    per file. Default: `8` files, `80000` characters.
+    `gap_lines`       after the comments come back, blocks of at least
+                    this many added lines that got no comment are sent to
+                    Claude again, once, asking only for them. `0`: never.
+                    Default: `5`.
     `effort`          effort per use (`overview`, `comments`, `quiz`, `ask`,
                     `grade`): `"low"`, `"medium"`, `"high"`, `"xhigh"` or
                     `"max"`, passed as `--effort`. A use left out lets

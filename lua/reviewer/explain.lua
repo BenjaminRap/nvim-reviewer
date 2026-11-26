@@ -70,6 +70,35 @@ local function add_fingerprints(ctx, e)
   state.save(ctx.project, "explain")
 end
 
+-- Blocks of at least `claude.gap_lines` added lines that have no comment
+-- (neither on the block nor on one of its lines). Checked in code after each
+-- reply; Claude is then asked about these blocks only.
+function M.gaps(ctx)
+  local e = state.explain(ctx.project).files[M.key(ctx)]
+  local min = config.options.claude.gap_lines or 5
+  if not e or e.hash ~= ctx.hash or ctx.deleted or not ctx.hunks or min <= 0 then return {} end
+  local covered = {}
+  for _, h in ipairs(ctx.hunks) do
+    for _, c in ipairs(e.comments or {}) do
+      local l = tonumber(c.line)
+      if block_id(c.block) == h.id or (l and l >= h.new_start and l < h.new_start + h.new_count) then covered[h.id] = true end
+    end
+  end
+  local out = {}
+  for _, h in ipairs(ctx.hunks) do
+    if h.new_count >= min and not covered[h.id] then out[#out + 1] = h.id end
+  end
+  return out
+end
+
+-- What to send for a second round on the gaps: every saved comment is kept.
+function M.gap_reuse(ctx)
+  local e = state.explain(ctx.project).files[M.key(ctx)]
+  local gaps = M.gaps(ctx)
+  if not e or #gaps == 0 then return nil end
+  return { entry = e, kept = vim.deepcopy(e.comments or {}), todo = gaps, gaps = true }
+end
+
 function M.get(ctx)
   local key = M.key(ctx)
   local e = state.explain(ctx.project).files[key]
@@ -163,7 +192,9 @@ function M.file_section(ctx)
     body = "This file is DELETED: give only \"summary\" (what it did) and \"changes\" (why it is gone and what replaces it, if the code shows it), with an empty \"comments\" list. Its old content starts with:\n" .. body
   else
     body = diff.listing(ctx.lines, ctx.hunks, 150000)
-    if ctx.reuse and #ctx.reuse.todo < #ctx.hunks then
+    if ctx.reuse and ctx.reuse.gaps then
+      body = ("Blocks %s have no comment yet: write comments for these blocks only (the other blocks already have theirs). \"summary\" and \"changes\" may be left empty.\n"):format(table.concat(ctx.reuse.todo, ", ")) .. body
+    elseif ctx.reuse and #ctx.reuse.todo < #ctx.hunks then
       body = ("Only blocks %s are new or changed since this file was last commented: write comments for these blocks only (the other blocks keep their comments), and write \"summary\" and \"changes\" again for the whole file.\n"):format(table.concat(ctx.reuse.todo, ", ")) .. body
     end
   end
@@ -211,9 +242,12 @@ function M.store(ctx, res, reuse)
   if reuse then vim.list_extend(comments, reuse.kept) end
   local blocks = {}
   for _, h in ipairs(ctx.hunks or {}) do blocks[#blocks + 1] = M.block_hash(h) end
+  -- a second round on the gaps may leave the summary and changes out
+  local old = reuse and reuse.entry or {}
+  local function text(v, keep) v = v and tostring(v) or ""; return v ~= "" and v or (keep or "") end
   state.explain(ctx.project).files[M.key(ctx)] = {
     hash = ctx.hash, step = ctx.step.id, path = ctx.file.path,
-    summary = tostring(res.summary or ""), changes = tostring(res.changes or ""),
+    summary = text(res.summary, old.summary), changes = text(res.changes, old.changes),
     comments = comments, blocks = blocks, at = state.now(),
   }
   state.save(ctx.project, "explain")
@@ -248,7 +282,7 @@ function M.ensure(ctx, opts)
   if not opts.force and M.get(ctx) then return end
   if not opts.force and not opts.manual and not config.options.ai.comment_on_open then return end
   M.status[key] = "pending"
-  ctx.reuse = not opts.force and M.reusable(ctx) or nil
+  if not opts.gaps then ctx.reuse = not opts.force and M.reusable(ctx) or nil end
   require("reviewer.core").changed()
   if not opts.prefetch then ui.notify("Claude is commenting " .. f.path .. "…") end
   claude.run(prompt(ctx), { json = true, tools = config.options.claude.explain_tools, cwd = ctx.dir, use = "comments" }, function(err, res)
@@ -258,6 +292,13 @@ function M.ensure(ctx, opts)
     else
       M.store(ctx, res, ctx.reuse)
       M.status[key] = nil
+      if not opts.gaps then
+        local g = M.gap_reuse(ctx)
+        if g then
+          ctx.reuse = g
+          return M.ensure(ctx, vim.tbl_extend("force", opts, { force = true, gaps = true, manual = true }))
+        end
+      end
       if not opts.prefetch then ui.notify("comments ready for " .. f.path) end
       if config.options.ai.prefetch_next and not opts.force and not opts.prefetch then M.prefetch_after(ctx) end
     end

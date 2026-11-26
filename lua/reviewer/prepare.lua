@@ -153,10 +153,16 @@ local function plan_comments(step, paths, force)
       if ctx and (force or not explain.get(ctx)) then todo[#todo + 1] = ctx end
     end
   end
+  for _, ctx in ipairs(todo) do ctx.reuse = not force and explain.reusable(ctx) or nil end
+  local batches, chars = M.batches(todo)
+  return todo, batches, chars
+end
+
+-- Contexts in batches by size (ctx.reuse already set). Returns batches, chars.
+function M.batches(ctxs)
   local batches, cur, size, chars = {}, {}, 0, 0
-  local maxc, maxf = config.options.claude.batch_chars or 120000, config.options.claude.batch_files or 15
-  for _, ctx in ipairs(todo) do
-    ctx.reuse = not force and explain.reusable(ctx) or nil
+  local maxc, maxf = config.options.claude.batch_chars or 80000, config.options.claude.batch_files or 8
+  for _, ctx in ipairs(ctxs) do
     local section = explain.file_section(ctx)
     if #cur > 0 and (size + #section > maxc or #cur >= maxf) then
       batches[#batches + 1] = cur
@@ -167,15 +173,12 @@ local function plan_comments(step, paths, force)
     chars = chars + #section
   end
   if #cur > 0 then batches[#batches + 1] = cur end
-  return todo, batches, chars
+  return batches, chars
 end
 
-local function run_comments(job, step, next_stage)
-  job.stage = "comments"
-  local todo, batches = plan_comments(step, job.paths, job.force)
-  job.total, job.done = #todo, 0
-  core.changed()
-  if #todo == 0 then return next_stage() end
+-- Send batches of files to comment; on_done(err) once all replies are in.
+-- gaps: a second round on blocks left without comments (not counted again).
+local function send_batches(job, step, batches, gaps, on_done)
   local pending = #batches
   for _, batch in ipairs(batches) do
     local sections, by_path = {}, {}
@@ -214,17 +217,42 @@ local function run_comments(job, step, next_stage)
       end
       for path, ctx in pairs(by_path) do
         explain.status[explain.key(ctx)] = nil
-        if got[path] then job.done = job.done + 1
-        elseif err ~= "cancelled" then table.insert(job.errors, path .. (err and (": " .. err) or ": missing from the reply")) end
+        if got[path] then
+          if not gaps then job.done = job.done + 1 end
+        elseif err ~= "cancelled" then
+          table.insert(job.errors, path .. (gaps and " (blocks without comments)" or "") .. (err and (": " .. err) or ": missing from the reply"))
+        end
       end
       core.changed()
       pending = pending - 1
-      if pending == 0 and not job.finished then
-        if err == "cancelled" then return finish(job, step.label .. ": preparation stopped") end
-        next_stage()
-      end
+      if pending == 0 and not job.finished then on_done(err) end
     end)
   end
+end
+
+local function run_comments(job, step, next_stage)
+  job.stage = "comments"
+  local todo, batches = plan_comments(step, job.paths, job.force)
+  job.total, job.done = #todo, 0
+  core.changed()
+  if #todo == 0 then return next_stage() end
+  send_batches(job, step, batches, false, function(err)
+    if err == "cancelled" then return finish(job, step.label .. ": preparation stopped") end
+    -- checked in code: blocks of several lines that got no comment go back to Claude, once
+    local missing, blocks = {}, 0
+    for _, ctx in ipairs(todo) do
+      local g = explain.gap_reuse(ctx)
+      if g then ctx.reuse = g; missing[#missing + 1] = ctx; blocks = blocks + #g.todo end
+    end
+    if #missing == 0 then return next_stage() end
+    job.stage = ("comments: %d block%s without comments"):format(blocks, blocks > 1 and "s" or "")
+    table.insert(job.notes, ("%d block%s without comments sent again"):format(blocks, blocks > 1 and "s" or ""))
+    core.changed()
+    send_batches(job, step, (M.batches(missing)), true, function(err2)
+      if err2 == "cancelled" then return finish(job, step.label .. ": preparation stopped") end
+      next_stage()
+    end)
+  end)
 end
 
 ------------------------------------------------------------------------ quiz
