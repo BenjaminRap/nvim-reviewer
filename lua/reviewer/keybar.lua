@@ -15,6 +15,7 @@ local ENTRIES = {
     { "file", "toggle_read", "read" }, { "file", "read_next", "read + next" },
     { "file", "browse", "files" }, { "file", "ask", "ask Claude (or lines)" },
     { "file", "explain", "write comments" }, { "file", "comments_style", "boxes / markers" },
+    { "file", "show_comment", "comment" },
     { "file", "about", "about the file" }, { "file", "toggle_split", "side by side" },
     { "file", "help", "all keys" },
   },
@@ -40,7 +41,8 @@ local LONG = {
     prev_file = "previous file of the review", toggle_read = "toggle the read mark",
     read_next = "mark read and open the next unread file", browse = "review browser on this folder",
     ask = "ask Claude about the file (visual: about the lines)", explain = "write Claude's comments on this file",
-    comments_style = "Claude's comments as boxes / as markers shown on hover", about = "summary, changes and commits of the file",
+    comments_style = "Claude's comments as boxes / as markers shown on hover",
+    show_comment = "Claude's comment of the code under the cursor (again: go into it, q to leave)", about = "summary, changes and commits of the file",
     toggle_split = "inline changes / side by side", help = "this help",
   },
 }

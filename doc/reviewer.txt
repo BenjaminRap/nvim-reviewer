@@ -365,8 +365,9 @@ show_comments                                *reviewer-option-show_comments*
 
 comments                                          *reviewer-option-comments*
     `"inline"`: comment boxes above the code. `"hover"`: a marker at the
-    end of the line, and the comment opens in a float when the cursor is on
-    that line. `<leader>rc` switches. Default: `"inline"`.
+    end of the line, and the comment opens in a float while the cursor is
+    in the code it is about (its whole block). `<leader>rc` switches,
+    `<leader>rh` shows a comment in either mode. Default: `"inline"`.
 
 key_hints                                        *reviewer-option-key_hints*
     A bar at the bottom of the screen listing the keys of the current
@@ -476,6 +477,7 @@ In reviewed files (`keymaps.file`), buffer-local      *reviewer-keys-file*
   `-`              browser on the file's folder        `browse`
   `<leader>rs`     inline / side by side               `toggle_split`
   `<leader>rc`     comments as boxes / markers         `comments_style`
+  `<leader>rh`     comment here; again: go into it     `show_comment`
   `g?`             every key, in a float               `help`
 
 In the browser (`keymaps.browser`)                 *reviewer-keys-browser*

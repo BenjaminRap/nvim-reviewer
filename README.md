@@ -160,6 +160,7 @@ Every key can be changed or disabled (see [Options](#options)). The browser and 
 | `-` | Open the browser on the file's folder |
 | `<leader>rs` | Inline changes / side by side |
 | `<leader>rc` | Claude's comments as boxes / as markers shown on hover |
+| `<leader>rh` | Claude's comment of the code under the cursor; press again to go into it (`q` or `<Esc>` to leave) |
 | `g?` | Every key, in a float |
 
 **Key bar.** While you are in a reviewed file, the browser or the quiz, a bar at the bottom of the screen lists their keys, like lazygit. It is a real window, so it never hides code, and focus never stays in it. `key_hints = false` turns it off, `:ReviewKeys` hides or shows it.
@@ -257,7 +258,8 @@ require("reviewer").setup({
     file = { next_change = "]c", prev_change = "[c", next_file = "]f", prev_file = "[f",
              toggle_read = "<leader>rr", read_next = "<leader>rn",
              ask = "<leader>ra", explain = "<leader>re", about = "<leader>ri", browse = "-",
-             toggle_split = "<leader>rs", comments_style = "<leader>rc", help = "g?" },
+             toggle_split = "<leader>rs", comments_style = "<leader>rc",
+             show_comment = "<leader>rh", help = "g?" },
     browser = { open = "<CR>", open_vsplit = "<C-s>", open_split = "<C-h>", open_tab = "<C-t>",
                 preview = "<C-p>", parent = "-", root = "_", refresh = "<C-l>",
                 toggle_view = "gs", commits = "gl", toggle_unchanged = "g.", toggle_generated = "gG",

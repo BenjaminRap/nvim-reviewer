@@ -80,6 +80,50 @@ describe("reviewed file", function()
     explain.get = get
   end)
 
+  it("keeps the comment open in its whole block, and <leader>rh goes into it", function()
+    vim.cmd("only")
+    open("src/app.ts")
+    local core, config, explain = require("reviewer.core"), require("reviewer.config"), require("reviewer.explain")
+    local render = require("reviewer.render")
+    local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
+    local ctx = core.buffers[buf]
+    local h = ctx.hunks[1]
+    for _, x in ipairs(ctx.hunks) do if x.new_count > h.new_count then h = x end end
+    local get = explain.get
+    explain.get = function() return { comments = { { block = h.id, text = "About the whole block." } } } end
+    local function floats()
+      return vim.tbl_filter(function(w) return vim.api.nvim_win_get_config(w).relative ~= "" end, vim.api.nvim_tabpage_list_wins(0))
+    end
+    config.options.comments = "hover"
+    render.draw(buf)
+    local last = h.new_start + h.new_count - 1
+    vim.api.nvim_win_set_cursor(0, { last, 0 })
+    render.hover(buf)
+    expect(#floats()).equal(1, "float on the block's last line")
+    -- a line outside every block has no comment
+    local outside
+    for l = 1, vim.api.nvim_buf_line_count(buf) do
+      if not render.comment_spot(ctx, l) then outside = l; break end
+    end
+    vim.api.nvim_win_set_cursor(0, { outside, 0 })
+    render.hover(buf)
+    expect(#floats()).equal(0, "closed outside the block")
+    -- inline mode: the key still shows it, and a second press goes into it
+    config.options.comments = "inline"
+    render.draw(buf)
+    vim.api.nvim_win_set_cursor(0, { h.new_start, 0 })
+    render.show_comment(buf)
+    expect(#floats()).equal(1, "shown on demand")
+    render.show_comment(buf)
+    expect(vim.api.nvim_get_current_win() ~= win).truthy("inside the float")
+    expect(table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false))).contains("About the whole block.")
+    fx.press("q")
+    expect(vim.api.nvim_get_current_win()).equal(win, "back in the file")
+    expect(#floats()).equal(0, "closed by q")
+    explain.get = get
+    render.draw(buf)
+  end)
+
   it("shows the keys of the file in a bar at the bottom", function()
     local config, keybar = require("reviewer.config"), require("reviewer.keybar")
     config.options.key_hints = true

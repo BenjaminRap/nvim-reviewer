@@ -53,7 +53,7 @@ M.defaults = {
     grade_open_answers = true, -- Claude grades open answers; false = you grade yourself
   },
   show_comments = true, -- Claude's comments above the code
-  comments = "inline", -- "inline" (boxes above the code) or "hover" (a ✦ marker; the comment opens when the cursor is on its line)
+  comments = "inline", -- "inline" (boxes above the code) or "hover" (a ✦ marker; the comment opens when the cursor is in the code it is about)
   key_hints = true, -- a bar at the bottom listing the keys of the current review buffer (like lazygit)
   show_removed = true, -- removed lines shown in place, in red
   inline_changes = true, -- inside a changed line, the changed words are a little stronger (like GitHub)
@@ -96,6 +96,7 @@ M.defaults = {
       browse = "-", -- open the review browser on the file's folder (like oil's "-")
       toggle_split = "<leader>rs", -- inline changes / side by side
       comments_style = "<leader>rc", -- Claude's comments as boxes or as hover markers
+      show_comment = "<leader>rh", -- Claude's comment of the code under the cursor; again: go into it
       help = "g?", -- every key, in a float
     },
     -- in the review browser. Its text is editable (read marks), so defaults
