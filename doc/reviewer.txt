@@ -610,10 +610,19 @@ false` stops highlighting the changed words inside a changed line.
 Everything is kept between sessions, per repository, in
 `stdpath("data")/reviewer/<repo>/`:
 
-  `state.json`     read marks, your notes, quiz answers with their history,
-                 questions asked to Claude, the last review
-  `explain.json`   overviews and Claude's comments per file, tied to the
-                 diff they were written for
+  `state.json`     shared settings: the last review, the browser view
+  `reviews/<base>..<branch>/state.json`
+                 that review's read marks, notes, quiz answers with their
+                 history, questions asked to Claude, last file opened
+  `reviews/<base>..<branch>/explain.json`
+                 that review's overview and Claude's comments per file,
+                 tied to the diff they were written for
   `quizzes/`       quiz files (|reviewer-quiz-file|)
+  `usage.jsonl`    one line per Claude call (|reviewer-option-claude|)
+
+A Neovim writes a review's files only when it changed that review, so two
+Neovims on different reviews never overwrite each other. Data saved by an
+older version (everything in the two top files) is moved into the review
+folders on the next save.
 
  vim:tw=78:ts=8:ft=help:norl:
