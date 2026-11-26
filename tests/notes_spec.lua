@@ -3,8 +3,10 @@ local fx = require("tests.fixture")
 local function note_marks()
   local out = {}
   for _, m in ipairs(vim.api.nvim_buf_get_extmarks(0, require("reviewer.render").ns, 0, -1, { details = true })) do
-    if m[4].sign_hl_group == "ReviewerNote" then
-      out[#out + 1] = { line = m[2] + 1, text = m[4].virt_text[2][1] }
+    -- the note itself: a virtual line above its line, after the ✎
+    local vl = m[4].virt_lines
+    if vl and vl[1][1][2] == "ReviewerNote" then
+      out[#out + 1] = { line = m[2] + 1, text = vl[1][2][1] }
     end
   end
   return out

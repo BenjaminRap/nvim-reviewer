@@ -139,7 +139,7 @@ the next file. |reviewer-option-layout| makes it the default.
                                                             *reviewer-notes*
 Your notes: `<leader>rm` (|:Review-note|) writes a note on the cursor line,
 or on the selected lines in visual mode. The note shows a `✎` in the sign
-column and its text at the end of the line. On a line with a note, the same
+column and its text on a virtual line above the code. On a line with a note, the same
 key edits it; saving it empty deletes it. Notes are saved per review, like
 read marks, with the text of their first line, so they follow that line when
 the code above it moves. |:Review-notes| (`gN` in the browser) puts every
@@ -380,7 +380,8 @@ show_comments                                *reviewer-option-show_comments*
 
 comments                                          *reviewer-option-comments*
     `"inline"`: comment boxes above the code. `"marker"`: a marker in the
-    sign column and at the end of the line; `<leader>rh` opens the comment
+    sign column and the start of the comment on one virtual line above the
+    code; `<leader>rh` opens the whole comment
     in a float, which closes when the cursor leaves the code it is about
     (its whole block). `<leader>rc` switches, `<leader>rh` works in either
     mode. `"hover"` is an older name of `"marker"`. Default: `"inline"`.

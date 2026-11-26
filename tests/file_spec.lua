@@ -143,6 +143,33 @@ describe("reviewed file", function()
     render.draw(buf)
   end)
 
+  it("shows the comment and the note on their own virtual line above the code", function()
+    open("src/app.ts")
+    local core, config, explain, render = require("reviewer.core"), require("reviewer.config"), require("reviewer.explain"), require("reviewer.render")
+    local buf = vim.api.nvim_get_current_buf()
+    local ctx = core.buffers[buf]
+    local h = ctx.hunks[1]
+    local get = explain.get
+    explain.get = function() return { comments = { { block = h.id, line = h.new_start, text = "What   this does." } } } end
+    config.options.comments = "marker"
+    local nlines = vim.api.nvim_buf_line_count(buf)
+    render.draw(buf)
+    expect(vim.api.nvim_buf_line_count(buf)).equal(nlines, "no real line added")
+    local found
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, render.ns, h.new_start - 1, h.new_start - 1, { details = true })) do
+      local d = m[4]
+      expect(d.virt_text_pos ~= "eol").truthy("nothing at the end of the line")
+      if d.virt_lines and d.virt_lines[1][1][2] == "ReviewerCommentTitle" then
+        found = true
+        expect(d.virt_lines_above).truthy("above the code")
+        expect(d.virt_lines[1][2][1]).equal("What this does.")
+      end
+    end
+    expect(found).truthy("the comment's virtual line")
+    explain.get = get
+    render.draw(buf)
+  end)
+
   it("gives a pinned comment the lines up to the next pinned one of its block", function()
     open("src/app.ts")
     local core, explain, render = require("reviewer.core"), require("reviewer.explain"), require("reviewer.render")

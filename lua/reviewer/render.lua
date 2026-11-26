@@ -176,6 +176,29 @@ function M.draw(buf)
   local function row(l) return math.max(0, math.min(nlines - 1, (l or 1) - 1)) end
   local top_fill = 0
 
+  -- One virtual line above a line of code (not a real line: no number, the
+  -- cursor skips it), indented like the code and cut to the window's width.
+  -- Returns how many lines it adds above line 1, for the scrolling below.
+  local textw = width
+  local win = vim.fn.win_findbuf(buf)[1]
+  if win then
+    local info = vim.fn.getwininfo(win)[1]
+    textw = math.max(20, vim.api.nvim_win_get_width(win) - (info and info.textoff or 0) - 1)
+  end
+  local function above(r, mark, mark_hl, text, suffix, hl)
+    local code = vim.api.nvim_buf_get_lines(buf, r, r + 1, false)[1] or ""
+    local indent = vim.fn.strdisplaywidth(code:match("^%s*"):gsub("\t", string.rep(" ", ts)))
+    indent = math.min(indent, math.floor(textw / 2))
+    local head = string.rep(" ", indent) .. mark .. " "
+    local room = math.max(10, textw - vim.fn.strdisplaywidth(head) - vim.fn.strdisplaywidth(suffix))
+    local first = text:gsub("%s+", " ")
+    if vim.fn.strdisplaywidth(first) > room then first = vim.fn.strcharpart(first, 0, room - 1) .. "…" end
+    vim.api.nvim_buf_set_extmark(buf, M.ns, r, 0, {
+      virt_lines = { { { head, mark_hl }, { first .. suffix, hl } } }, virt_lines_above = true, priority = 30,
+    })
+    return r == 0 and 1 or 0
+  end
+
   -- Claude's comments first, so they sit above the removed lines of the same block.
   ctx.comment_at, ctx.comment_spots = nil, nil
   if config.options.show_comments then
@@ -252,33 +275,27 @@ function M.draw(buf)
         end
       end
       for line, texts in pairs(ctx.comment_at) do
-        local first = (texts[1] or ""):gsub("%s+", " ")
-        if vim.fn.strchars(first) > 60 then first = vim.fn.strcharpart(first, 0, 59) .. "…" end
         local more = #texts > 1 and (" (+" .. (#texts - 1) .. ")") or ""
-        -- The sign is always visible; the text at the end of the line is not when
-        -- the line is wider than the window. The sign wins over the "+" of an
-        -- added line when the sign column has room for one sign only.
+        -- A sign, and the start of the comment on its own virtual line above the
+        -- code. The sign wins over the "+" of an added line when the sign column
+        -- has room for one sign only.
         vim.api.nvim_buf_set_extmark(buf, M.ns, row(line), 0, {
-          sign_text = sym("comment"), sign_hl_group = "ReviewerCommentTitle",
-          virt_text = { { "  " .. sym("comment") .. " ", "ReviewerCommentTitle" }, { first .. more, "ReviewerDim" } },
-          virt_text_pos = "eol", priority = 30,
+          sign_text = sym("comment"), sign_hl_group = "ReviewerCommentTitle", priority = 30,
         })
+        top_fill = top_fill + above(row(line), sym("comment"), "ReviewerCommentTitle", texts[1] or "", more, "ReviewerDim")
       end
     end
   end
 
-  -- Your notes: a sign on their first line, the note at the end of the line.
+  -- Your notes: a sign on their first line, the note on its own virtual line above it.
   local notes = require("reviewer.notes")
   local blines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   for _, n in ipairs(notes.of_file(ctx.file.path, ctx.step)) do
     local a, b = notes.resolve(n, blines)
-    local first = n.text:gsub("%s+", " ")
-    if vim.fn.strchars(first) > 80 then first = vim.fn.strcharpart(first, 0, 79) .. "…" end
     vim.api.nvim_buf_set_extmark(buf, M.ns, row(a), 0, {
       sign_text = sym("note"), sign_hl_group = "ReviewerNote", priority = 40,
-      virt_text = { { "  " .. sym("note") .. " ", "ReviewerNote" }, { first .. (b > a and (" (" .. a .. "-" .. b .. ")") or ""), "ReviewerNote" } },
-      virt_text_pos = "eol",
     })
+    top_fill = top_fill + above(row(a), sym("note"), "ReviewerNote", n.text, b > a and (" (" .. a .. "-" .. b .. ")") or "", "ReviewerNote")
   end
 
   local split = require("reviewer.split").active()
