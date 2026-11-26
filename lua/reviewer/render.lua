@@ -9,6 +9,11 @@ M.ns = vim.api.nvim_create_namespace("reviewer")
 
 local function sym(name) return config.options.symbols[name] end
 
+local function pad(text, width)
+  local w = vim.fn.strdisplaywidth(text)
+  return w < width and (text .. string.rep(" ", width - w)) or text
+end
+
 function M.setup_highlights()
   local links = {
     ReviewerAdd = "DiffAdd", ReviewerAddSign = "Added",
@@ -74,11 +79,32 @@ function M.setup_highlights()
   end
 end
 
+-- The columns left of the text (folds, signs, numbers) of the window showing
+-- buf, as chunks for a virtual line drawn from the window's left edge: the "-"
+-- sits in the sign column, under the "+" of the added lines. nil when the
+-- layout is unknown (custom 'statuscolumn') or there is no room.
+local function gutter(buf)
+  local win = vim.fn.win_findbuf(buf)[1]
+  if not win or vim.wo[win].statuscolumn ~= "" then return nil end
+  local info = vim.fn.getwininfo(win)[1]
+  local textoff = info and info.textoff or 0
+  local fold = tonumber(vim.wo[win].foldcolumn) or 0 -- "auto:N": counted as 0
+  local signw = math.min(2, textoff - fold)
+  if signw < 1 then return nil end
+  local chunks = {}
+  if fold > 0 then chunks[#chunks + 1] = { string.rep(" ", fold), "FoldColumn" } end
+  chunks[#chunks + 1] = { pad(sym("removed"), signw), "ReviewerDeleteSign" }
+  local rest = textoff - fold - signw
+  if rest > 0 then chunks[#chunks + 1] = { string.rep(" ", rest), "LineNr" } end
+  return chunks, textoff
+end
+
 -- Virtual-line chunks for a removed line, with its changed ranges stronger.
-local function removed_chunks(text, ranges, width, ts)
+-- lead: the gutter chunks (the line then starts at the window's left edge).
+local function removed_chunks(text, ranges, width, ts, lead, leadw)
   local function expand(s) return (s:gsub("\t", string.rep(" ", ts))) end
-  local chunks = { { sym("removed_prefix"), "ReviewerDelete" } }
-  local col, used = 0, vim.fn.strdisplaywidth(sym("removed_prefix"))
+  local chunks = lead and vim.deepcopy(lead) or { { sym("removed_prefix"), "ReviewerDelete" } }
+  local col, used = 0, lead and leadw or vim.fn.strdisplaywidth(sym("removed_prefix"))
   local function add(s, hl)
     if s == "" then return end
     s = expand(s)
@@ -93,11 +119,6 @@ local function removed_chunks(text, ranges, width, ts)
   add(text:sub(col + 1), "ReviewerDelete")
   if used < width then chunks[#chunks + 1] = { string.rep(" ", width - used), "ReviewerDelete" } end
   return chunks
-end
-
-local function pad(text, width)
-  local w = vim.fn.strdisplaywidth(text)
-  return w < width and (text .. string.rep(" ", width - w)) or text
 end
 
 local function win_width(buf)
@@ -146,6 +167,21 @@ function M.draw(buf)
         b = tostring(b or ""):upper():gsub("%s", "")
         return b:match("^%d+$") and ("B" .. b) or b
       end
+      -- the block whose added lines contain this line (the given one first)
+      local function block_of(line, h)
+        local function inside(x) return x and x.new_count > 0 and line >= x.new_start and line < x.new_start + x.new_count end
+        if inside(h) then return h end
+        for _, x in ipairs(ctx.hunks) do if inside(x) then return x end end
+      end
+      -- pinned lines of each block: a pinned comment covers its section, from
+      -- its line to the next pinned line of the block (or the block's end)
+      local pins = {}
+      for _, c in ipairs(e.comments) do
+        if c.line and c.line >= 1 and c.line <= nlines then
+          local b = block_of(c.line, by_hunk[block_id(c.block)])
+          if b then pins[b] = pins[b] or {}; table.insert(pins[b], c.line) end
+        end
+      end
       local at = {}
       for _, c in ipairs(e.comments) do
         local h = by_hunk[block_id(c.block)]
@@ -158,6 +194,14 @@ function M.draw(buf)
           local first, last = line, line
           if not pinned and h and h.new_count > 0 then
             first, last = h.new_start, math.min(nlines, h.new_start + h.new_count - 1)
+          elseif pinned then
+            local b = block_of(line, h)
+            if b then
+              last = math.min(nlines, b.new_start + b.new_count - 1)
+              for _, p in ipairs(pins[b]) do
+                if p > line and p - 1 < last then last = p - 1 end
+              end
+            end
           end
           at[key] = at[key] or { line = line, above = above, texts = {}, first = first, last = last }
           at[key].first, at[key].last = math.min(at[key].first, first), math.max(at[key].last, last)
@@ -224,6 +268,7 @@ function M.draw(buf)
       vim.api.nvim_buf_set_extmark(buf, M.ns, l - 1, 0, { line_hl_group = "ReviewerDelete", sign_text = sym("removed"), sign_hl_group = "ReviewerDeleteSign" })
     end
   else
+    local lead, leadw = gutter(buf)
     for _, h in ipairs(ctx.hunks) do
       if h.new_count > 0 then
         for l = h.new_start, math.min(nlines, h.new_start + h.new_count - 1) do
@@ -246,10 +291,12 @@ function M.draw(buf)
         local vl = {}
         local inline = config.options.inline_changes and require("reviewer.diff").add_inline(h)
         for i, r in ipairs(h.removed) do
-          vl[#vl + 1] = removed_chunks(r, inline and h.inline_removed[i], width, ts)
+          vl[#vl + 1] = removed_chunks(r, inline and h.inline_removed[i], width, ts, lead, leadw)
         end
         if h.anchor == 1 and h.above then top_fill = top_fill + #vl end
-        vim.api.nvim_buf_set_extmark(buf, M.ns, row(h.anchor), 0, { virt_lines = vl, virt_lines_above = h.above, priority = 10 })
+        vim.api.nvim_buf_set_extmark(buf, M.ns, row(h.anchor), 0, {
+          virt_lines = vl, virt_lines_above = h.above, virt_lines_leftcol = lead ~= nil, priority = 10,
+        })
       end
     end
   end

@@ -143,6 +143,56 @@ describe("reviewed file", function()
     render.draw(buf)
   end)
 
+  it("gives a pinned comment the lines up to the next pinned one of its block", function()
+    open("src/app.ts")
+    local core, explain, render = require("reviewer.core"), require("reviewer.explain"), require("reviewer.render")
+    local buf = vim.api.nvim_get_current_buf()
+    local ctx = core.buffers[buf]
+    local h = ctx.hunks[1]
+    for _, x in ipairs(ctx.hunks) do if x.new_count > h.new_count then h = x end end
+    expect(h.new_count >= 2).truthy("a block of two lines or more")
+    local last = h.new_start + h.new_count - 1
+    local get = explain.get
+    explain.get = function() return { comments = {
+      { block = h.id, line = h.new_start, text = "First section." },
+      { block = h.id, line = last, text = "Last section." },
+    } } end
+    render.draw(buf)
+    expect(render.comment_spot(ctx, h.new_start).texts[1]).equal("First section.")
+    if last - 1 > h.new_start then
+      expect(render.comment_spot(ctx, last - 1).texts[1]).equal("First section.", "up to the next pinned line")
+    end
+    expect(render.comment_spot(ctx, last).texts[1]).equal("Last section.")
+    explain.get = get
+    render.draw(buf)
+  end)
+
+  it("puts the - of removed lines in the sign column, with the +", function()
+    open("src/app.ts")
+    local render = require("reviewer.render")
+    local buf = vim.api.nvim_get_current_buf()
+    vim.wo.number, vim.wo.signcolumn = true, "yes"
+    render.draw(buf)
+    local textoff = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1].textoff
+    local found
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, render.ns, 0, -1, { details = true })) do
+      local d = m[4]
+      if d.virt_lines and d.priority == 10 then
+        found = true
+        expect(d.virt_lines_leftcol).truthy("drawn from the left edge")
+        local first = d.virt_lines[1]
+        expect(vim.trim(first[1][1])).equal("-", "the sign first")
+        local w = 0
+        for i = 1, #first - 1 do
+          if first[i][2] == "ReviewerDelete" or first[i][2] == "ReviewerDeleteText" then break end
+          w = w + vim.fn.strdisplaywidth(first[i][1])
+        end
+        expect(w).equal(textoff, "the text starts where the code does")
+      end
+    end
+    expect(found).truthy("removed lines drawn")
+  end)
+
   it("mixes green and red into the background with colors = vivid", function()
     local config, render = require("reviewer.config"), require("reviewer.render")
     local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
