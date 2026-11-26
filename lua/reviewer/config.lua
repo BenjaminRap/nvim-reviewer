@@ -55,6 +55,7 @@ M.defaults = {
     comment_on_open = false, -- comment a file automatically the first time it is opened
     prefetch_next = false, -- then also comment the next unread file in the background
     offer_missing_quiz = true, -- offer to write a quiz when you open one that does not exist
+    confirm_prepare = true, -- before preparing: show the files, calls, characters and a cost estimate, and ask
     grade_open_answers = true, -- Claude grades open answers; false = you grade yourself
   },
   show_comments = true, -- Claude's comments above the code

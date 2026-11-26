@@ -143,23 +143,20 @@ local function run_overview(job, step, next_stage)
 end
 
 ------------------------------------------------------------------------ comments
-local function run_comments(job, step, next_stage)
-  job.stage = "comments"
+-- Files still to comment, in batches by size. Also used by the warning.
+-- Returns todo (contexts), batches ({ { ctx, section } }), chars (code sent).
+local function plan_comments(step, paths, force)
   local todo = {}
   for _, f in ipairs(reviewable_files(step)) do
-    if not job.paths or job.paths[f.path] then
+    if not paths or paths[f.path] then
       local ctx = core.make_ctx(step, f)
-      if ctx and (job.force or not explain.get(ctx)) then todo[#todo + 1] = ctx end
+      if ctx and (force or not explain.get(ctx)) then todo[#todo + 1] = ctx end
     end
   end
-  job.total, job.done = #todo, 0
-  core.changed()
-  if #todo == 0 then return next_stage() end
-  -- batches by size
-  local batches, cur, size = {}, {}, 0
+  local batches, cur, size, chars = {}, {}, 0, 0
   local maxc, maxf = config.options.claude.batch_chars or 120000, config.options.claude.batch_files or 15
   for _, ctx in ipairs(todo) do
-    ctx.reuse = not job.force and explain.reusable(ctx) or nil
+    ctx.reuse = not force and explain.reusable(ctx) or nil
     local section = explain.file_section(ctx)
     if #cur > 0 and (size + #section > maxc or #cur >= maxf) then
       batches[#batches + 1] = cur
@@ -167,8 +164,18 @@ local function run_comments(job, step, next_stage)
     end
     cur[#cur + 1] = { ctx = ctx, section = section }
     size = size + #section
+    chars = chars + #section
   end
   if #cur > 0 then batches[#batches + 1] = cur end
+  return todo, batches, chars
+end
+
+local function run_comments(job, step, next_stage)
+  job.stage = "comments"
+  local todo, batches = plan_comments(step, job.paths, job.force)
+  job.total, job.done = #todo, 0
+  core.changed()
+  if #todo == 0 then return next_stage() end
   local pending = #batches
   for _, batch in ipairs(batches) do
     local sections, by_path = {}, {}
@@ -342,14 +349,106 @@ local function run_quiz(job, step, next_stage)
   end)
 end
 
+------------------------------------------------------------------------ warning
+-- Past calls of a use in usage.jsonl (newest last), at most `n`.
+local function past_calls(use, n)
+  local path = core.project and (core.project.data_dir .. "/usage.jsonl")
+  local out = {}
+  if not path or not vim.uv.fs_stat(path) then return out end
+  for _, l in ipairs(vim.fn.readfile(path)) do
+    local ok, e = pcall(vim.json.decode, l)
+    if ok and type(e) == "table" and e.use == use and tonumber(e.cost) and not e.error then out[#out + 1] = e end
+  end
+  while #out > n do table.remove(out, 1) end
+  return out
+end
+
+-- Cost estimate from your past calls: the average for overview and quiz, and
+-- for comments the cost per character of prompt. nil without history.
+function M.estimate(plan)
+  local total, known = 0, false
+  local function avg(use)
+    local calls = past_calls(use, 10)
+    if #calls == 0 then return nil end
+    local s = 0
+    for _, e in ipairs(calls) do s = s + e.cost end
+    return s / #calls
+  end
+  if plan.overview then
+    local a = avg("overview")
+    if a then total, known = total + a, true end
+  end
+  if plan.quiz then
+    local a = avg("quiz")
+    if a then total, known = total + a, true end
+  end
+  if plan.files > 0 then
+    local cost, chars = 0, 0
+    for _, e in ipairs(past_calls("comments", 50)) do
+      cost, chars = cost + e.cost, chars + (tonumber(e.prompt_chars) or 0)
+    end
+    if chars > 0 then total, known = total + cost / chars * plan.chars, true end
+  end
+  return known and total or nil
+end
+
+-- What a preparation would run, without running it.
+-- opts: as M.step. Returns { overview, quiz, files, calls, chars }.
+function M.plan(step, opts)
+  opts = opts or {}
+  local stages = opts.stages or { overview = true, comments = true, quiz = true }
+  local has_overview = explain.overview(core.project, step) ~= nil
+  local plan = {
+    overview = (stages.overview and (opts.force and not opts.paths or not has_overview))
+      or ((stages.comments or stages.quiz) and not has_overview) or false,
+    quiz = stages.quiz and (opts.force or not quiz_exists(step.id)) or false,
+    files = 0, calls = 0, chars = 0,
+  }
+  if stages.comments then
+    local todo, batches, chars = plan_comments(step, opts.paths, opts.force and stages.comments)
+    plan.files, plan.calls, plan.chars = #todo, #batches, chars
+  end
+  return plan
+end
+
+local function chars_text(n)
+  if n >= 1e6 then return ("%.1f M"):format(n / 1e6) end
+  if n >= 1e3 then return ("%d k"):format(math.floor(n / 1e3 + 0.5)) end
+  return tostring(n)
+end
+
+-- "overview (1 call) · comments on 74 files in 6 calls (520 k characters) · about $4.80 from your past calls"
+function M.plan_text(plan)
+  local parts = {}
+  if plan.overview then parts[#parts + 1] = "overview (1 call)" end
+  if plan.files > 0 then
+    parts[#parts + 1] = ("comments on %d file%s in %d call%s (%s characters of code)"):format(
+      plan.files, plan.files > 1 and "s" or "", plan.calls, plan.calls > 1 and "s" or "", chars_text(plan.chars))
+  end
+  if plan.quiz then parts[#parts + 1] = "quiz (1 call)" end
+  if #parts == 0 then return nil end
+  local cost = M.estimate(plan)
+  parts[#parts + 1] = cost and ("about $%.2f from your past calls"):format(cost) or "no past calls to estimate the cost from"
+  return table.concat(parts, " · ")
+end
+
 ------------------------------------------------------------------------ entry points
--- opts: { force = bool, stages = { overview = bool, comments = bool, quiz = bool }, paths = { [path] = true } }
+-- opts: { force = bool, stages = { overview = bool, comments = bool, quiz = bool }, paths = { [path] = true },
+--         confirmed = bool (the warning was already shown, or the user chose not to be asked) }
 function M.step(step, opts, on_done)
   opts = opts or {}
   local key = step.id
   if M.jobs[key] and not M.jobs[key].finished then return ui.notify(step.label .. " is already being prepared") end
   local dir, derr = git.step_dir(core.project, step, true)
   if not dir then return ui.notify(derr or "no folder for this step", vim.log.levels.ERROR) end
+  if not opts.confirmed and config.options.ai.confirm_prepare ~= false then
+    local text = M.plan_text(M.plan(step, opts))
+    if not text then return ui.notify(step.label .. ": nothing to prepare") end
+    return vim.ui.select({ "Yes, run it", "No" }, { prompt = ("%s: %s. Run it?"):format(step.label, text) }, function(c)
+      if not (c and c:match("^Yes")) then return end
+      vim.schedule(function() M.step(step, vim.tbl_extend("force", opts, { confirmed = true }), on_done) end)
+    end)
+  end
   local stages = opts.stages or { overview = true, comments = true, quiz = true }
   local job = { tag = tag(key), stage = "starting", done = 0, total = 0, cost = 0, errors = {}, notes = {}, dir = dir,
     force = opts.force and stages.comments, force_quiz = opts.force, paths = opts.paths, on_done = on_done }
@@ -423,10 +522,13 @@ function M.offer_on_start()
   local desc, s = M.describe(step)
   local complete = s.overview and s.commented >= s.total and s.quiz
   if complete then return ui.notify(("%s is already prepared (%s)"):format(step.label, desc)) end
-  if mode == "step" then return M.step(step) end
+  -- "step": you chose to prepare without being asked
+  if mode == "step" then return M.step(step, { confirmed = true }) end
+  local full = M.plan_text(M.plan(step)) or "nothing to run"
+  local only = M.plan_text({ overview = not s.overview, quiz = false, files = 0, calls = 0, chars = 0 })
   local choices = {
-    { id = "step", label = "Prepare this review: overview, comments on every file, quiz" },
-    { id = "overview", label = "Only the overview of the changes (one call)" },
+    { id = "step", label = "Prepare this review: " .. full },
+    { id = "overview", label = "Only the overview of the changes" .. (only and (": " .. only) or " (already written)") },
     { id = "no", label = "Not now (g? in the browser lists the actions)" },
   }
   vim.ui.select(choices, {
@@ -435,17 +537,17 @@ function M.offer_on_start()
   }, function(c)
     if not c or c.id == "no" then return end
     vim.schedule(function()
-      if c.id == "step" then M.step(step)
-      elseif c.id == "overview" then M.overview_then_show(step) end
+      if c.id == "step" then M.step(step, { confirmed = true })
+      elseif c.id == "overview" then M.overview_then_show(step, true) end
     end)
   end)
 end
 
 -- Show the overview, writing it first if needed.
-function M.overview_then_show(step)
+function M.overview_then_show(step, confirmed)
   step = step or core.step
   if explain.overview(core.project, step) then return M.show_overview(step) end
-  M.step(step, { stages = { overview = true } }, function()
+  M.step(step, { stages = { overview = true }, confirmed = confirmed }, function()
     if explain.overview(core.project, step) then M.show_overview(step) end
   end)
 end
@@ -455,10 +557,11 @@ function M.quiz_or_write(quiz_id, on_ready)
   if quiz_exists(quiz_id) then return on_ready() end
   if quiz_id ~= core.step.id then return ui.notify("no quiz for " .. quiz_id .. " yet", vim.log.levels.WARN) end
   if not config.options.ai.offer_missing_quiz then return ui.notify("no quiz yet: :Review prepare quiz") end
-  vim.ui.select({ "Yes, write it now", "No" }, { prompt = ("There is no quiz for %s yet. Have Claude write it?"):format(core.step.label) }, function(c)
+  local text = M.plan_text(M.plan(core.step, { stages = { quiz = true } }))
+  vim.ui.select({ "Yes, write it now", "No" }, { prompt = ("There is no quiz for %s yet. Have Claude write it? (%s)"):format(core.step.label, text or "") }, function(c)
     if not (c and c:match("^Yes")) then return end
     vim.schedule(function()
-      M.step(core.step, { stages = { quiz = true } }, function() if quiz_exists(quiz_id) then on_ready() end end)
+      M.step(core.step, { stages = { quiz = true }, confirmed = true }, function() if quiz_exists(quiz_id) then on_ready() end end)
     end)
   end)
 end

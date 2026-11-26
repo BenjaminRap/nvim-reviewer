@@ -474,6 +474,10 @@ ai                                                      *reviewer-option-ai*
     `prefetch_next`       then also comment the next unread file.
                         Default: `false`.
     `offer_missing_quiz`  offer to write a missing quiz. Default: `true`.
+    `confirm_prepare`     before preparing, show what will run (overview,
+                        comments: files, calls and characters of code,
+                        quiz) with a cost estimate from your past calls in
+                        `usage.jsonl`, and ask. Default: `true`.
     `grade_open_answers`  Claude grades open answers; `false` to grade
                         yourself. Default: `true`.
 

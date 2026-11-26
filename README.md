@@ -109,6 +109,7 @@ There is one command, `:Review`; everything else is a subcommand (`:Review <Tab>
 Claude only runs when you ask, unless you configure otherwise (`ai` options).
 
 - **When you start a review,** the plugin shows what is already prepared and offers to prepare it: everything, only the overview, or not now. With `ai.on_start` you can always prepare or never ask.
+- **Before anything runs,** the plugin says what it is about to do and asks: which parts (overview, comments, quiz), how many files and calls, how many characters of code are sent, and a cost estimate from your past calls in `usage.jsonl` (the average overview and quiz, and the cost per character of the comment calls). `ai.confirm_prepare = false` skips the question.
 - **Keys in the browser** (`g?` lists them):
   - `gA` prepares the review, and `gS` stops it.
   - `gO` opens the overview, writing it first if needed.
@@ -232,6 +233,7 @@ require("reviewer").setup({
     comment_on_open = false,    -- comment a file automatically the first time it is opened
     prefetch_next = false,      -- then also comment the next unread file
     offer_missing_quiz = true,  -- offer to write a quiz you open that does not exist yet
+    confirm_prepare = true,     -- before preparing: files, calls, characters, cost estimate, and a question
     grade_open_answers = true,  -- false: you grade open answers yourself
   },
   show_comments = true,         -- Claude's comments above the code
