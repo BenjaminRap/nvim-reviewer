@@ -54,7 +54,9 @@ end
 local function start(job)
   running = running + 1
   local c = config.options.claude
-  local cmd = { c.cmd, "-p", "--output-format", "json", "--no-session-persistence", "--tools", job.opts.tools or "" }
+  local cmd = { c.cmd, "-p", "--output-format", "json", "--tools", job.opts.tools or "" }
+  if job.opts.resume then vim.list_extend(cmd, { "--resume", job.opts.resume })
+  elseif not job.opts.session then cmd[#cmd + 1] = "--no-session-persistence" end
   if job.opts.tools and job.opts.tools ~= "" then
     vim.list_extend(cmd, { "--allowedTools", job.opts.tools })
   end
@@ -79,7 +81,7 @@ local function start(job)
       end
       local okj, out = pcall(vim.json.decode, res.stdout or "", { luanil = { object = true, array = true } })
       if not okj or type(out) ~= "table" then return job.cb("could not read Claude's reply") end
-      local meta = { cost = tonumber(out.total_cost_usd) or 0, models = vim.tbl_keys(out.modelUsage or {}) }
+      local meta = { cost = tonumber(out.total_cost_usd) or 0, models = vim.tbl_keys(out.modelUsage or {}), session_id = out.session_id }
       M.total_cost = M.total_cost + meta.cost
       pcall(M.log_usage, job, out)
       if out.is_error then return job.cb(tostring(out.result or out.subtype or "Claude returned an error")) end
@@ -100,9 +102,10 @@ local function start(job)
   end
 end
 
--- opts: { tools = "", cwd = dir, json = bool, tag = string, use = "overview"|"comments"|"quiz"|"ask"|"grade" }
+-- opts: { tools = "", cwd = dir, json = bool, tag = string, use = "overview"|"comments"|"quiz"|"ask"|"grade",
+--         session = bool (keep the session so it can be resumed), resume = session id }
 -- cb(err, result, meta)
--- meta.cost is the call's cost in USD as reported by Claude Code.
+-- meta.cost is the call's cost in USD as reported by Claude Code; meta.session_id its session.
 function M.run(prompt, opts, cb)
   local job = { prompt = prompt, opts = opts or {}, cb = cb }
   if running < (config.options.claude.max_parallel or 2) then start(job) else queue[#queue + 1] = job end

@@ -53,7 +53,7 @@ function M.open()
       (a.prompt or ""):gsub("\n", " "):sub(1, 110)), { kind = "question", quiz = a.quiz, qid = a.qid })
   end
 
-  local asks = vim.deepcopy(st.asks)
+  local asks = vim.list_slice(st.asks)
   table.sort(asks, function(a, b) return (a.at or "") > (b.at or "") end)
   add("")
   add(("## Questions you asked Claude (%d)"):format(#asks))

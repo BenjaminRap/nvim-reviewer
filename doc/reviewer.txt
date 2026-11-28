@@ -192,8 +192,12 @@ unless you add `!`. The cost reported by Claude Code is shown while it runs.
 Questions ~
 `<leader>ra` in normal or visual mode, or |:Review-ask|, asks Claude about the
 file or the selected lines. Claude runs in the checkout of the reviewed
-branch with read-only tools, so it can open any file of the repo. Answers
-open in a float and are saved: |:Review-asks| lists them.
+branch with read-only tools, so it can open any file of the repo. The answer
+opens in a conversation window: `r` (or `i`) writes a reply, to ask for
+details or a follow-up, and Claude answers in the same conversation. Replies
+resume the same Claude Code session; when it cannot be resumed (deleted, or
+the checkout moved), the conversation so far is sent again. Conversations are
+saved: |:Review-asks| lists them, and you can reply to an old one.
 
 What Claude sees ~
   overview      commits, file list, diffs, read access to the repo
@@ -318,7 +322,7 @@ Keys: |reviewer-keys-progress|.
     Ask Claude about the current file, or about the lines in [range].
 
 :Review asks                                                       *:Review-asks*
-    The questions you asked Claude, with the answers.
+    Your conversations with Claude; pick one to read it or reply.
 
 :[range]Review note                                                *:Review-note*
     Your note on the cursor line, or on the lines in [range]. On a line that
@@ -602,6 +606,9 @@ In the progress view (`keymaps.progress`)         *reviewer-keys-progress*
   <CR>           open the line                       `open`
   `m`              retry all mistakes                  `retry_mistakes`
   `A`              questions asked                     `asks`
+
+In a conversation with Claude (`keymaps.ask`)
+  `r` `i`            write a reply                       `reply`
 
 Floats (`keymaps.float`, `keymaps.input`)
   `q` <Esc>        close a float                       `close`

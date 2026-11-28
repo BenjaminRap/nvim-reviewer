@@ -148,6 +148,7 @@ M.defaults = {
       close = { "q", "<Esc>" },
     },
     progress = { open = "<CR>", retry_mistakes = "m", asks = "A" },
+    ask = { reply = { "r", "i" } }, -- in a conversation with Claude
     float = { close = { "q", "<Esc>" } },
     input = { submit = "<C-s>", submit_normal = "<CR>", cancel = { "q", "<Esc>" } },
   },

@@ -10,7 +10,7 @@ Review the changes of a branch in Neovim, file by file, in your real editor (LSP
 - **Claude's comments** above each change block, written once per file and saved.
 - **An oil-like browser.** Move through the changed files one folder at a time, like oil (`<CR>`, `-`, `_`), or see them all in reading order: Claude's reading path when the overview has one (architecture first, then each flow through the layers, then details and tests), otherwise database → shared → backend → frontend → tests. The next file to read is marked `→ next`, and so are the folders (or the reading-path stage) that hold it, and "mark read and go next" follows the same order. Read marks are text: tick `[ ]` → `[x]` with any edit, `:w` saves. Deleted and renamed files are listed too.
 - **Your own notes** on a line or selected lines, shown with a `✎` on a line of its own just above the line you wrote them on and listed in the quickfix list (`:Review notes`). Start a note with `? ` for a question or `! ` for an issue, and mark it done with `<leader>rd`. `:Review answer` has Claude answer all your open questions in one call, and `:Review export` turns your issues and open questions into Markdown to paste into the merge request.
-- **Questions to Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. Questions and answers are saved.
+- **Conversations with Claude** about a file or selected lines. Claude runs in the reviewed checkout with read-only tools, so it can open any file of the repo. The answer opens in a chat window where `r` replies, to ask for details or a follow-up. Conversations are saved and can be continued later (`:Review asks`).
 - **Quizzes**, from the big picture down to single lines. Choice questions are graded locally; Claude grades open answers against a reference answer. Mistakes are saved and can be retried.
 - **Progress view.** Shows every review of the repository with files read and quiz results, your mistakes, and the questions you asked.
 
@@ -94,7 +94,7 @@ There is one command, `:Review`; everything else is a subcommand (`:Review <Tab>
 | `:Review keys` | Show or hide the key bar at the bottom |
 | `:Review about` | Summary, what changed, and commits of the current file |
 | `:[range]Review ask` | Ask Claude about the file or the lines |
-| `:Review asks` | Questions you asked, with Claude's answers |
+| `:Review asks` | Your conversations with Claude, to read or continue |
 | `:[range]Review note` | Your note on this line or the lines in range; on a note, edit it (empty deletes it) |
 | `:Review notes [open]` | Every note of the review in the quickfix list (`open`: only open questions and issues) |
 | `:Review answer` | Claude answers your open questions, in one call |

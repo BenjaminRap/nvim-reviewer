@@ -219,7 +219,7 @@ M.SUBCOMMANDS = {
   { "keys", function() M.commands.keys() end, "show or hide the key bar" },
   { "about", function() M.commands.about() end, "summary and commits of the current file" },
   { "ask", function(o) M.commands.ask(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, "ask Claude about this file or the selected lines" },
-  { "asks", function() M.commands.asks() end, "questions you asked Claude, with answers" },
+  { "asks", function() M.commands.asks() end, "your conversations with Claude, to read or continue" },
   { "note", function(o) M.commands.note(o.range > 0 and o.line1 or nil, o.range > 0 and o.line2 or nil) end, "your note on this line or the selected lines (on a note: edit it)" },
   { "notes", function(_, a) M.commands.notes(a[1]) end, "[open]: every note of the review (open: only open questions and issues), in the quickfix list", { "open" } },
   { "answer", function() M.commands.answer() end, "Claude answers your open questions (notes starting with ?), in one call" },
