@@ -295,12 +295,12 @@ function M.draw(buf)
     end
   end
 
-  -- Your notes, on their own virtual line above their first line (the top of
-  -- the block for a note about a whole block).
+  -- Your notes, on their own virtual line above the line they were written on
+  -- (the first line of a note about selected lines).
   local notes = require("reviewer.notes")
   local blines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   for _, n in ipairs(notes.of_file(ctx.file.path, ctx.step)) do
-    local a, b = notes.span(ctx, n, blines)
+    local a, b = notes.resolve(n, blines)
     local kind = notes.kind(n)
     local mark = n.done and "✓" or sym(kind == "note" and "note" or kind)
     local hl = n.done and "ReviewerDim" or ({ note = "ReviewerNote", question = "ReviewerPartial", issue = "ReviewerBad" })[kind]

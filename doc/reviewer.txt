@@ -138,9 +138,9 @@ the next file. |reviewer-option-layout| makes it the default.
 
                                                             *reviewer-notes*
 Your notes: `<leader>rm` (|:Review-note|) writes a note on the cursor line,
-or on the selected lines in visual mode; on a line of a changed block, the
-note is about the whole block. Its text shows after a `✎` on a virtual line
-above the code (the top of the block). On a line with a note, the same
+or on the selected lines in visual mode. A note stays on the line it was
+written on, even inside a big changed block. Its text shows after a `✎` on a
+virtual line just above that line. On a line with a note, the same
 key edits it; saving it empty deletes it. Notes are saved per review, like
 read marks, with the text of their first line, so they follow that line when
 the code above it moves. |:Review-notes| (`gN` in the browser) puts every
